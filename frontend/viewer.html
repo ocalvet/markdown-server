@@ -46,6 +46,9 @@
 
         <main class="main-content">
             <div id="breadcrumb" class="breadcrumb"></div>
+            <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+                <div class="loading-bar"></div>
+            </div>
             <article id="content" class="markdown-content">
                 <div class="loading">Loading content...</div>
             </article>
@@ -177,7 +180,10 @@
                         }, 100);
                     }
 
-                    fileItem.addEventListener('click', () => {
+                    fileItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToFile(file.path);
+
                         if (window.innerWidth <= 768) {
                             setTimeout(() => {
                                 document.getElementById('sidebar').classList.remove('sidebar-open');
@@ -190,29 +196,60 @@
             });
         }
 
-        async function loadFileTree() {
+        async function loadFileTree(forceRefresh = false) {
             try {
+                // Use cached data unless force refresh is requested
+                if (!forceRefresh && fileTreeData) {
+                    renderCachedFileTree();
+                    return;
+                }
+
                 const response = await fetch(`${API_BASE}/api/files`);
                 const files = await response.json();
+                fileTreeData = files;
 
-                const container = document.getElementById('sidebarNav');
-                container.innerHTML = '';
-
-                // Get current file path from URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const currentFile = urlParams.get('file') || '';
-
-                if (files.length === 0) {
-                    container.innerHTML = '<div class="empty-state">No files found</div>';
-                } else {
-                    renderFileTree(files, container, 0, currentFile);
-                }
+                renderCachedFileTree();
             } catch (error) {
                 document.getElementById('sidebarNav').innerHTML =
                     '<div class="error">Error loading files</div>';
                 console.error('Error loading files:', error);
             }
         }
+
+        function renderCachedFileTree() {
+            const container = document.getElementById('sidebarNav');
+            container.innerHTML = '';
+
+            // Get current file path from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentFile = urlParams.get('file') || '';
+
+            if (!fileTreeData || fileTreeData.length === 0) {
+                container.innerHTML = '<div class="empty-state">No files found</div>';
+            } else {
+                renderFileTree(fileTreeData, container, 0, currentFile);
+            }
+        }
+
+        function navigateToFile(filePath) {
+            // Update URL without page reload
+            const newUrl = `viewer.html?file=${encodeURIComponent(filePath)}`;
+            window.history.pushState({ filePath }, '', newUrl);
+
+            // Load the new file content
+            loadMarkdown();
+
+            // Update sidebar highlighting (without re-fetching)
+            renderCachedFileTree();
+        }
+
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.filePath) {
+                loadMarkdown();
+                renderCachedFileTree();
+            }
+        });
 
         function renderBreadcrumb(filePath) {
             const parts = filePath.split('/');
@@ -235,7 +272,12 @@
                 return;
             }
 
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
             try {
+                // Show loading indicator
+                loadingIndicator.style.display = 'block';
+
                 document.getElementById('fileName').textContent = filePath.split('/').pop();
                 renderBreadcrumb(filePath);
 
@@ -268,7 +310,13 @@
                     });
                 }
 
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+
             } catch (error) {
+                // Hide loading indicator on error
+                loadingIndicator.style.display = 'none';
+
                 document.getElementById('content').innerHTML =
                     '<div class="error">Error loading file. Please try again.</div>';
                 console.error('Error loading markdown:', error);
@@ -281,9 +329,10 @@
 
                 eventSource.onmessage = (event) => {
                     if (event.data === 'reload') {
-                        console.log('File change detected, reloading content...');
+                        console.log('File change detected, refreshing file tree and content...');
                         loadMarkdown();
-                        loadFileTree();
+                        loadFileTree(true); // Force refresh from backend
+                        buildSearchIndex(); // Rebuild search index with new files
                     }
                 };
 
@@ -300,6 +349,7 @@
             }
         }
 
+        let fileTreeData = null;
         let searchIndex = [];
         let fuse = null;
 
@@ -449,7 +499,8 @@
             container.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const path = item.dataset.path;
-                    window.location.href = `viewer.html?file=${encodeURIComponent(path)}`;
+                    closeSearch();
+                    navigateToFile(path);
                 });
 
                 item.addEventListener('keydown', (e) => {
