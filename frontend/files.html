@@ -17,9 +17,14 @@
                     <h1>Browse Files</h1>
                 </div>
             </div>
-            <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
-                <span class="theme-icon">◐</span>
-            </button>
+            <div class="header-right">
+                <button id="searchToggle" class="search-toggle" aria-label="Search" title="Search (Ctrl+K)">
+                    <span class="search-icon">🔍</span>
+                </button>
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                    <span class="theme-icon">◐</span>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -29,6 +34,27 @@
         </div>
     </main>
 
+    <div id="searchModal" class="search-modal" style="display: none;">
+        <div class="search-backdrop"></div>
+        <div class="search-container">
+            <div class="search-header">
+                <div class="search-input-wrapper">
+                    <span class="search-input-icon">🔍</span>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search files and content..." autocomplete="off">
+                    <button id="searchClear" class="search-clear" style="display: none;">✕</button>
+                </div>
+                <button id="searchClose" class="search-close" aria-label="Close search">✕</button>
+            </div>
+            <div id="searchResults" class="search-results">
+                <div class="search-empty">
+                    <p>Type to search across all markdown files</p>
+                    <p class="search-hint">Press <kbd>Esc</kbd> to close</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
     <script>
         const API_BASE = window.location.origin;
 
@@ -115,9 +141,179 @@
             }
         }
 
+        let searchIndex = [];
+        let fuse = null;
+
+        async function buildSearchIndex() {
+            try {
+                const response = await fetch(`${API_BASE}/api/files`);
+                const files = await response.json();
+                const indexPromises = [];
+
+                function collectFiles(fileList) {
+                    fileList.forEach(file => {
+                        if (file.isDir && file.children) {
+                            collectFiles(file.children);
+                        } else if (!file.isDir) {
+                            indexPromises.push(
+                                fetch(`${API_BASE}/api/file/${file.path}`)
+                                    .then(r => r.text())
+                                    .then(content => ({
+                                        name: file.name,
+                                        path: file.path,
+                                        content: content.substring(0, 5000)
+                                    }))
+                                    .catch(() => null)
+                            );
+                        }
+                    });
+                }
+
+                collectFiles(files);
+                searchIndex = (await Promise.all(indexPromises)).filter(item => item !== null);
+
+                fuse = new Fuse(searchIndex, {
+                    keys: [
+                        { name: 'name', weight: 2 },
+                        { name: 'path', weight: 1.5 },
+                        { name: 'content', weight: 1 }
+                    ],
+                    threshold: 0.4,
+                    includeMatches: true,
+                    minMatchCharLength: 2,
+                    ignoreLocation: true
+                });
+
+                console.log(`Search index built: ${searchIndex.length} files`);
+            } catch (error) {
+                console.error('Error building search index:', error);
+            }
+        }
+
+        function openSearch() {
+            document.getElementById('searchModal').style.display = 'flex';
+            document.getElementById('searchInput').focus();
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSearch() {
+            const modal = document.getElementById('searchModal');
+            const input = document.getElementById('searchInput');
+            modal.style.display = 'none';
+            input.value = '';
+            document.getElementById('searchClear').style.display = 'none';
+            document.body.style.overflow = '';
+            renderSearchResults([]);
+        }
+
+        function highlightMatch(text, indices) {
+            if (!indices || indices.length === 0) return text;
+            let result = '';
+            let lastIndex = 0;
+            indices.forEach(([start, end]) => {
+                result += text.substring(lastIndex, start);
+                result += `<mark>${text.substring(start, end + 1)}</mark>`;
+                lastIndex = end + 1;
+            });
+            result += text.substring(lastIndex);
+            return result;
+        }
+
+        function renderSearchResults(results) {
+            const container = document.getElementById('searchResults');
+            if (results.length === 0) {
+                container.innerHTML = `<div class="search-empty"><p>No results found</p><p class="search-hint">Try different keywords</p></div>`;
+                return;
+            }
+
+            const resultHTML = results.map(result => {
+                const item = result.item;
+                const matches = result.matches || [];
+                let nameHTML = item.name;
+                let pathHTML = item.path;
+                let snippetHTML = '';
+
+                matches.forEach(match => {
+                    if (match.key === 'name') nameHTML = highlightMatch(item.name, match.indices);
+                    else if (match.key === 'path') pathHTML = highlightMatch(item.path, match.indices);
+                    else if (match.key === 'content' && match.indices.length > 0) {
+                        const startIdx = Math.max(0, match.indices[0][0] - 50);
+                        const endIdx = Math.min(item.content.length, match.indices[0][1] + 100);
+                        let snippet = item.content.substring(startIdx, endIdx).replace(/\n/g, ' ').trim();
+                        const adjustedIndices = match.indices.map(([s, e]) => [Math.max(0, s - startIdx), Math.min(snippet.length - 1, e - startIdx)]);
+                        snippetHTML = (startIdx > 0 ? '...' : '') + highlightMatch(snippet, adjustedIndices) + (endIdx < item.content.length ? '...' : '');
+                    }
+                });
+
+                if (!snippetHTML && item.content) snippetHTML = item.content.substring(0, 150).replace(/\n/g, ' ') + '...';
+
+                return `<div class="search-result-item" data-path="${item.path}" tabindex="0">
+                    <div class="search-result-name">${nameHTML}</div>
+                    <div class="search-result-path">${pathHTML}</div>
+                    ${snippetHTML ? `<div class="search-result-snippet">${snippetHTML}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            container.innerHTML = `<div class="search-result-count">${results.length} result${results.length !== 1 ? 's' : ''}</div>${resultHTML}`;
+
+            container.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', () => window.location.href = `viewer.html?file=${encodeURIComponent(item.dataset.path)}`);
+                item.addEventListener('keydown', (e) => { if (e.key === 'Enter') item.click(); });
+            });
+        }
+
+        let searchTimeout;
+        function performSearch(query) {
+            clearTimeout(searchTimeout);
+            document.getElementById('searchClear').style.display = query ? 'block' : 'none';
+            if (!query || query.length < 2) {
+                renderSearchResults([]);
+                return;
+            }
+            searchTimeout = setTimeout(() => {
+                if (fuse) renderSearchResults(fuse.search(query).slice(0, 20));
+            }, 300);
+        }
+
+        document.getElementById('searchToggle').addEventListener('click', openSearch);
+        document.getElementById('searchClose').addEventListener('click', closeSearch);
+        document.getElementById('searchClear').addEventListener('click', () => {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchClear').style.display = 'none';
+            renderSearchResults([]);
+            document.getElementById('searchInput').focus();
+        });
+        document.querySelector('.search-backdrop').addEventListener('click', closeSearch);
+        document.getElementById('searchInput').addEventListener('input', (e) => performSearch(e.target.value));
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                openSearch();
+            }
+            if (e.key === 'Escape' && document.getElementById('searchModal').style.display === 'flex') {
+                closeSearch();
+            }
+        });
+
+        document.getElementById('searchResults').addEventListener('keydown', (e) => {
+            const items = Array.from(document.querySelectorAll('.search-result-item'));
+            const currentIndex = items.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (currentIndex < items.length - 1) items[currentIndex + 1].focus();
+                else if (currentIndex === -1 && items.length > 0) items[0].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentIndex > 0) items[currentIndex - 1].focus();
+                else if (currentIndex === 0) document.getElementById('searchInput').focus();
+            }
+        });
+
         initTheme();
         loadFiles();
         initHotReload();
+        buildSearchIndex();
     </script>
 </body>
 </html>

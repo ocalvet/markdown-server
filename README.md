@@ -4,6 +4,7 @@ A lightweight web server for browsing and viewing markdown files with support fo
 
 ## Features
 
+- **Full-Text Search**: Fuzzy search across all files and content with keyboard shortcut (Ctrl+K / Cmd+K)
 - **Markdown Rendering**: Full GitHub Flavored Markdown support
 - **Mermaid Diagrams**: Create flowcharts, sequence diagrams, and more
 - **Syntax Highlighting**: Support for 180+ programming languages
@@ -24,6 +25,7 @@ A lightweight web server for browsing and viewing markdown files with support fo
 - Marked.js v12.0.0 (Markdown parsing)
 - Mermaid.js v11.0.2 (Diagram rendering)
 - Highlight.js v11.11.1 (Syntax highlighting)
+- Fuse.js v7.0.0 (Fuzzy search)
 
 ## Quick Start
 
@@ -185,6 +187,36 @@ MARKDOWN_DIR=/path/to/files PORT=9000 IGNORE_PATTERNS="build,dist" go run main.g
 2. Organize them in folders as needed
 3. The server will automatically discover all files recursively
 4. Refresh the browser to see new files
+
+## Search
+
+The server includes a powerful full-text search feature powered by Fuse.js for fuzzy matching.
+
+### How to Use
+
+- **Keyboard Shortcut**: Press `Ctrl+K` (Windows/Linux) or `Cmd+K` (Mac) from any page
+- **Search Button**: Click the 🔍 icon in the header
+- **Live Results**: Search results update as you type (with 300ms debounce)
+- **Navigation**: Use arrow keys (↑↓) to navigate results, Enter to open, Esc to close
+
+### What's Searched
+
+The search indexes:
+- **File names** (highest priority)
+- **File paths** (medium priority)
+- **File content** (up to 5000 characters per file)
+
+### Features
+
+- **Fuzzy Matching**: Finds results even with typos or partial matches
+- **Content Snippets**: Shows relevant excerpts with highlighted matches
+- **Result Count**: Displays the number of matching files (up to 20 results)
+- **Keyboard Navigation**: Fully accessible via keyboard
+- **Responsive**: Works on desktop and mobile
+
+### Search Index
+
+The search index is built automatically when you load the viewer or files page. The index includes all markdown files and updates when the page reloads.
 
 ## Theme Colors
 
