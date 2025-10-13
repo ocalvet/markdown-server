@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Viewer</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" id="hljs-light">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" id="hljs-dark" disabled>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="header-left">
+                <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+                    <span class="toggle-icon">☰</span>
+                </button>
+                <img src="logo.svg" alt="Markdown Server" class="logo header-logo">
+                <h1 id="fileName">Loading...</h1>
+            </div>
+            <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                <span class="theme-icon">◐</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <a href="files.html" class="home-link">📁 Files</a>
+            </div>
+            <nav id="sidebarNav" class="sidebar-nav">
+                <div class="loading">Loading files...</div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div id="breadcrumb" class="breadcrumb"></div>
+            <article id="content" class="markdown-content">
+                <div class="loading">Loading content...</div>
+            </article>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.0.2/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateHighlightTheme(savedTheme);
+        }
+
+        function updateHighlightTheme(theme) {
+            const lightTheme = document.getElementById('hljs-light');
+            const darkTheme = document.getElementById('hljs-dark');
+
+            if (theme === 'dark') {
+                lightTheme.disabled = true;
+                darkTheme.disabled = false;
+            } else {
+                lightTheme.disabled = false;
+                darkTheme.disabled = true;
+            }
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateHighlightTheme(newTheme);
+        });
+
+        document.getElementById('sidebarToggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('sidebar-open');
+        });
+
+        document.addEventListener('click', (e) => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+
+            if (window.innerWidth <= 768 &&
+                sidebar.classList.contains('sidebar-open') &&
+                !sidebar.contains(e.target) &&
+                !sidebarToggle.contains(e.target)) {
+                sidebar.classList.remove('sidebar-open');
+            }
+        });
+
+        function renderFileTree(files, container, level = 0) {
+            files.forEach(file => {
+                if (file.isDir) {
+                    const folderItem = document.createElement('div');
+                    folderItem.className = 'sidebar-folder';
+                    folderItem.style.paddingLeft = `${level * 12}px`;
+
+                    const folderHeader = document.createElement('div');
+                    folderHeader.className = 'folder-header';
+                    folderHeader.innerHTML = `<span class="folder-toggle">▸</span> <span class="folder-icon">📁</span> ${file.name}`;
+                    folderItem.appendChild(folderHeader);
+
+                    const folderContent = document.createElement('div');
+                    folderContent.className = 'folder-content';
+                    folderContent.style.display = 'none';
+                    folderItem.appendChild(folderContent);
+
+                    folderHeader.addEventListener('click', () => {
+                        const isOpen = folderContent.style.display === 'block';
+                        folderContent.style.display = isOpen ? 'none' : 'block';
+                        folderHeader.querySelector('.folder-toggle').textContent = isOpen ? '▸' : '▾';
+                    });
+
+                    container.appendChild(folderItem);
+
+                    if (file.children && file.children.length > 0) {
+                        renderFileTree(file.children, folderContent, level + 1);
+                    }
+                } else {
+                    const fileItem = document.createElement('a');
+                    fileItem.href = `viewer.html?file=${encodeURIComponent(file.path)}`;
+                    fileItem.className = 'sidebar-file';
+                    fileItem.style.paddingLeft = `${level * 12 + 20}px`;
+                    fileItem.innerHTML = `<span class="file-icon">📄</span> ${file.name}`;
+
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (file.path === urlParams.get('file')) {
+                        fileItem.classList.add('active');
+                    }
+
+                    fileItem.addEventListener('click', () => {
+                        if (window.innerWidth <= 768) {
+                            setTimeout(() => {
+                                document.getElementById('sidebar').classList.remove('sidebar-open');
+                            }, 100);
+                        }
+                    });
+
+                    container.appendChild(fileItem);
+                }
+            });
+        }
+
+        async function loadFileTree() {
+            try {
+                const response = await fetch(`${API_BASE}/api/files`);
+                const files = await response.json();
+
+                const container = document.getElementById('sidebarNav');
+                container.innerHTML = '';
+
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No files found</div>';
+                } else {
+                    renderFileTree(files, container);
+                }
+            } catch (error) {
+                document.getElementById('sidebarNav').innerHTML =
+                    '<div class="error">Error loading files</div>';
+                console.error('Error loading files:', error);
+            }
+        }
+
+        function renderBreadcrumb(filePath) {
+            const parts = filePath.split('/');
+            const breadcrumb = document.getElementById('breadcrumb');
+            breadcrumb.innerHTML = parts.map((part, index) => {
+                if (index === parts.length - 1) {
+                    return `<span class="breadcrumb-current">${part}</span>`;
+                }
+                return `<span class="breadcrumb-item">${part}</span>`;
+            }).join('<span class="breadcrumb-separator">/</span>');
+        }
+
+        async function loadMarkdown() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const filePath = urlParams.get('file');
+
+            if (!filePath) {
+                document.getElementById('content').innerHTML =
+                    '<div class="error">No file specified</div>';
+                return;
+            }
+
+            try {
+                document.getElementById('fileName').textContent = filePath.split('/').pop();
+                renderBreadcrumb(filePath);
+
+                const response = await fetch(`${API_BASE}/api/file/${filePath}`);
+                if (!response.ok) throw new Error('File not found');
+
+                const markdown = await response.text();
+
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        if (lang && hljs.getLanguage(lang)) {
+                            return hljs.highlight(code, { language: lang }).value;
+                        }
+                        return hljs.highlightAuto(code).value;
+                    },
+                    breaks: true,
+                    gfm: true
+                });
+
+                const html = marked.parse(markdown);
+                document.getElementById('content').innerHTML = html;
+
+                if (typeof mermaid !== 'undefined') {
+                    mermaid.initialize({
+                        startOnLoad: true,
+                        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+                    });
+                    await mermaid.run({
+                        querySelector: '.language-mermaid'
+                    });
+                }
+
+            } catch (error) {
+                document.getElementById('content').innerHTML =
+                    '<div class="error">Error loading file. Please try again.</div>';
+                console.error('Error loading markdown:', error);
+            }
+        }
+
+        function initHotReload() {
+            try {
+                const eventSource = new EventSource(`${API_BASE}/api/events`);
+
+                eventSource.onmessage = (event) => {
+                    if (event.data === 'reload') {
+                        console.log('File change detected, reloading content...');
+                        loadMarkdown();
+                        loadFileTree();
+                    }
+                };
+
+                eventSource.onerror = (error) => {
+                    console.log('Hot reload not available, continuing without it');
+                    eventSource.close();
+                };
+
+                eventSource.addEventListener('connected', () => {
+                    console.log('Hot reload connected');
+                });
+            } catch (error) {
+                console.log('Hot reload not available');
+            }
+        }
+
+        initTheme();
+        loadFileTree();
+        loadMarkdown();
+        initHotReload();
+    </script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Files - Markdown Server</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="index.html" class="back-link">← Home</a>
+                <div class="logo-container">
+                    <img src="logo.svg" alt="Markdown Server" class="logo">
+                    <h1>Browse Files</h1>
+                </div>
+            </div>
+            <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                <span class="theme-icon">◐</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="fileList" class="file-list">
+            <div class="loading">Loading files...</div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        function renderFileTree(files, container, level = 0) {
+            files.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.style.paddingLeft = `${level * 20}px`;
+
+                if (file.isDir) {
+                    const folder = document.createElement('div');
+                    folder.className = 'folder';
+                    folder.innerHTML = `<span class="folder-icon">📁</span> ${file.name}`;
+                    item.appendChild(folder);
+                    container.appendChild(item);
+
+                    if (file.children && file.children.length > 0) {
+                        renderFileTree(file.children, container, level + 1);
+                    }
+                } else {
+                    const link = document.createElement('a');
+                    link.href = `viewer.html?file=${encodeURIComponent(file.path)}`;
+                    link.className = 'file-link';
+                    link.innerHTML = `<span class="file-icon">📄</span> ${file.name}`;
+                    item.appendChild(link);
+                    container.appendChild(item);
+                }
+            });
+        }
+
+        async function loadFiles() {
+            try {
+                const response = await fetch(`${API_BASE}/api/files`);
+                const files = await response.json();
+
+                const container = document.getElementById('fileList');
+                container.innerHTML = '';
+
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No markdown files found</div>';
+                } else {
+                    renderFileTree(files, container);
+                }
+            } catch (error) {
+                document.getElementById('fileList').innerHTML =
+                    '<div class="error">Error loading files. Please try again.</div>';
+                console.error('Error loading files:', error);
+            }
+        }
+
+        function initHotReload() {
+            try {
+                const eventSource = new EventSource(`${API_BASE}/api/events`);
+
+                eventSource.onmessage = (event) => {
+                    if (event.data === 'reload') {
+                        console.log('File change detected, reloading file list...');
+                        loadFiles();
+                    }
+                };
+
+                eventSource.onerror = (error) => {
+                    console.log('Hot reload not available, continuing without it');
+                    eventSource.close();
+                };
+
+                eventSource.addEventListener('connected', () => {
+                    console.log('Hot reload connected');
+                });
+            } catch (error) {
+                console.log('Hot reload not available');
+            }
+        }
+
+        initTheme();
+        loadFiles();
+        initHotReload();
+    </script>
+</body>
+</html>

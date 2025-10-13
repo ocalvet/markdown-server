@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Document background -->
+  <rect x="8" y="4" width="48" height="56" rx="4" fill="#0066cc"/>
+
+  <!-- Document fold corner -->
+  <path d="M56 4H48V12L56 4Z" fill="#0052a3"/>
+
+  <!-- Markdown symbol - stylized M with down arrow -->
+  <g transform="translate(16, 16)">
+    <!-- M shape -->
+    <path d="M 4 8 L 4 28 L 8 28 L 8 14 L 12 20 L 16 14 L 16 28 L 20 28 L 20 8 L 16 8 L 12 16 L 8 8 Z" fill="white"/>
+
+    <!-- Down arrow -->
+    <path d="M 24 12 L 24 24 L 20 20 M 24 24 L 28 20" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

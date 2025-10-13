@@ -1,0 +1,46 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+markdown-server
+
+# Go
+*.test
+*.out
+/vendor/
+go.work
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# Build artifacts
+dist/
+build/
+
+# Node modules
+node_modules/
+
+# User markdown files
+backend/markdown-files/*
+!backend/markdown-files/.gitkeep

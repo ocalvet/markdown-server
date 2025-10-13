@@ -1,0 +1,13 @@
+backend/markdown-server
+backend/*.exe
+backend/*.dll
+backend/*.so
+backend/*.dylib
+backend/.DS_Store
+backend/markdown-files/*
+.git
+.gitignore
+README.md
+*.md
+.vscode
+.idea

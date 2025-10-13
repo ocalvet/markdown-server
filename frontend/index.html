@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Server</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo-container">
+                <img src="logo.svg" alt="Markdown Server" class="logo">
+                <h1>Markdown Server</h1>
+            </div>
+            <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                <span class="theme-icon">◐</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="hero">
+            <div class="hero-content">
+                <div class="hero-logo">
+                    <img src="logo.svg" alt="Markdown Server Logo" class="hero-logo-image">
+                </div>
+                <h2 class="hero-title">Browse & View Markdown Files</h2>
+                <p class="hero-description">
+                    A lightweight web-based markdown viewer with support for diagrams, syntax highlighting, and hot reload.
+                </p>
+
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">📝</div>
+                        <h3>GitHub Flavored Markdown</h3>
+                        <p>Full support for tables, task lists, and more</p>
+                    </div>
+
+                    <div class="feature">
+                        <div class="feature-icon">📊</div>
+                        <h3>Mermaid Diagrams</h3>
+                        <p>Flowcharts, sequence diagrams, and more</p>
+                    </div>
+
+                    <div class="feature">
+                        <div class="feature-icon">💻</div>
+                        <h3>Syntax Highlighting</h3>
+                        <p>180+ programming languages supported</p>
+                    </div>
+
+                    <div class="feature">
+                        <div class="feature-icon">🔄</div>
+                        <h3>Hot Reload</h3>
+                        <p>Automatically updates when files change</p>
+                    </div>
+
+                    <div class="feature">
+                        <div class="feature-icon">🌓</div>
+                        <h3>Dark/Light Theme</h3>
+                        <p>Switch between themes for comfortable reading</p>
+                    </div>
+
+                    <div class="feature">
+                        <div class="feature-icon">📱</div>
+                        <h3>Responsive Design</h3>
+                        <p>Works perfectly on mobile and desktop</p>
+                    </div>
+                </div>
+
+                <div class="cta-buttons">
+                    <a href="files.html" class="btn btn-primary">Browse Files</a>
+                    <a href="https://github.com/yourusername/markdown-server" class="btn btn-secondary" target="_blank">View on GitHub</a>
+                </div>
+
+                <div class="config-info">
+                    <h3>Configuration</h3>
+                    <p>Set the <code>MARKDOWN_DIR</code> environment variable to specify the directory to serve.</p>
+                    <p>Set the <code>PORT</code> environment variable to change the server port (default: 8703).</p>
+                    <p>Set the <code>IGNORE_PATTERNS</code> environment variable to customize ignored directories (comma-separated).</p>
+                    <p><strong>Default ignores:</strong> node_modules, .git, .vscode, build, dist, and more.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        initTheme();
+    </script>
+</body>
+</html>
