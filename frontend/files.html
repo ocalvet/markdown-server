@@ -13,8 +13,12 @@
             <div class="header-content">
                 <a href="index.html" class="back-link">← Home</a>
                 <div class="logo-container">
-                    <img src="logo.svg" alt="Markdown Server" class="logo">
-                    <h1>Browse Files</h1>
+                    <a href="index.html" class="logo-link" title="Home">
+                        <img src="logo.svg" alt="Markdown Server" class="logo">
+                    </a>
+                    <a href="index.html" class="title-link" title="Go to home">
+                        <h1>Browse Files</h1>
+                    </a>
                 </div>
             </div>
             <div class="header-right">
@@ -90,7 +94,8 @@
                     const link = document.createElement('a');
                     link.href = `viewer.html?file=${encodeURIComponent(file.path)}`;
                     link.className = 'file-link';
-                    link.innerHTML = `<span class="file-icon">📄</span> ${file.name}`;
+                    link.title = file.name;
+                    link.innerHTML = `<span class="file-icon">📄</span><span class="sidebar-file-name">${file.name}</span>`;
                     item.appendChild(link);
                     container.appendChild(item);
                 }

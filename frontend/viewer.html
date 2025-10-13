@@ -16,8 +16,12 @@
                 <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar">
                     <span class="toggle-icon">☰</span>
                 </button>
-                <img src="logo.svg" alt="Markdown Server" class="logo header-logo">
-                <h1 id="fileName">Loading...</h1>
+                <a href="index.html" class="logo-link" title="Home">
+                    <img src="logo.svg" alt="Markdown Server" class="logo header-logo">
+                </a>
+                <a href="index.html" class="title-link" title="Go to home">
+                    <h1 id="fileName">Loading...</h1>
+                </a>
             </div>
             <div class="header-right">
                 <button id="searchToggle" class="search-toggle" aria-label="Search" title="Search (Ctrl+K)">
@@ -153,7 +157,8 @@
                     fileItem.href = `viewer.html?file=${encodeURIComponent(file.path)}`;
                     fileItem.className = 'sidebar-file';
                     fileItem.style.paddingLeft = `${level * 12 + 20}px`;
-                    fileItem.innerHTML = `<span class="file-icon">📄</span> ${file.name}`;
+                    fileItem.title = file.name;
+                    fileItem.innerHTML = `<span class="file-icon">📄</span><span class="sidebar-file-name">${file.name}</span>`;
 
                     const urlParams = new URLSearchParams(window.location.search);
                     if (file.path === urlParams.get('file')) {
