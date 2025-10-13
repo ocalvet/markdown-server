@@ -124,7 +124,7 @@
             }
         });
 
-        function renderFileTree(files, container, level = 0) {
+        function renderFileTree(files, container, level = 0, currentFilePath = '') {
             files.forEach(file => {
                 if (file.isDir) {
                     const folderItem = document.createElement('div');
@@ -141,6 +141,14 @@
                     folderContent.style.display = 'none';
                     folderItem.appendChild(folderContent);
 
+                    // Check if this folder contains the current file
+                    const containsCurrentFile = currentFilePath.startsWith(file.path + '/');
+
+                    if (containsCurrentFile) {
+                        folderContent.style.display = 'block';
+                        folderHeader.querySelector('.folder-toggle').textContent = '▾';
+                    }
+
                     folderHeader.addEventListener('click', () => {
                         const isOpen = folderContent.style.display === 'block';
                         folderContent.style.display = isOpen ? 'none' : 'block';
@@ -150,7 +158,7 @@
                     container.appendChild(folderItem);
 
                     if (file.children && file.children.length > 0) {
-                        renderFileTree(file.children, folderContent, level + 1);
+                        renderFileTree(file.children, folderContent, level + 1, currentFilePath);
                     }
                 } else {
                     const fileItem = document.createElement('a');
@@ -163,6 +171,10 @@
                     const urlParams = new URLSearchParams(window.location.search);
                     if (file.path === urlParams.get('file')) {
                         fileItem.classList.add('active');
+                        // Scroll active file into view
+                        setTimeout(() => {
+                            fileItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 100);
                     }
 
                     fileItem.addEventListener('click', () => {
@@ -186,10 +198,14 @@
                 const container = document.getElementById('sidebarNav');
                 container.innerHTML = '';
 
+                // Get current file path from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentFile = urlParams.get('file') || '';
+
                 if (files.length === 0) {
                     container.innerHTML = '<div class="empty-state">No files found</div>';
                 } else {
-                    renderFileTree(files, container);
+                    renderFileTree(files, container, 0, currentFile);
                 }
             } catch (error) {
                 document.getElementById('sidebarNav').innerHTML =

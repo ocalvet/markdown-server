@@ -243,6 +243,11 @@ func getIgnorePatterns() []string {
 }
 
 func shouldIgnore(name string, ignorePatterns []string) bool {
+	// Ignore all directories starting with a dot
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+
 	nameLower := strings.ToLower(name)
 	for _, pattern := range ignorePatterns {
 		if strings.Contains(nameLower, strings.ToLower(pattern)) {
