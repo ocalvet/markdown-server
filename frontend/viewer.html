@@ -35,7 +35,7 @@
     </header>
 
     <div class="layout">
-        <aside id="sidebar" class="sidebar">
+        <aside id="sidebar" class="sidebar sidebar-open">
             <div class="sidebar-header">
                 <a href="files.html" class="home-link">📁 Files</a>
             </div>
@@ -88,6 +88,19 @@
             updateHighlightTheme(savedTheme);
         }
 
+        function initSidebar() {
+            const savedSidebarState = localStorage.getItem('sidebarOpen');
+            const sidebar = document.getElementById('sidebar');
+
+            if (savedSidebarState !== null) {
+                if (savedSidebarState === 'true') {
+                    sidebar.classList.add('sidebar-open');
+                } else {
+                    sidebar.classList.remove('sidebar-open');
+                }
+            }
+        }
+
         function updateHighlightTheme(theme) {
             const lightTheme = document.getElementById('hljs-light');
             const darkTheme = document.getElementById('hljs-dark');
@@ -113,6 +126,7 @@
             e.stopPropagation();
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('sidebar-open');
+            localStorage.setItem('sidebarOpen', sidebar.classList.contains('sidebar-open'));
         });
 
         document.addEventListener('click', (e) => {
@@ -583,6 +597,7 @@
         });
 
         initTheme();
+        initSidebar();
         loadFileTree();
         loadMarkdown();
         initHotReload();
