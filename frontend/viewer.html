@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" id="hljs-light">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" id="hljs-dark" disabled>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.css">
 </head>
 <body>
     <header>
@@ -24,6 +25,9 @@
                 </a>
             </div>
             <div class="header-right">
+                <button id="graphToggle" class="graph-toggle" aria-label="Knowledge Graph" title="Knowledge Graph">
+                    <span class="graph-icon">🕸️</span>
+                </button>
                 <button id="searchToggle" class="search-toggle" aria-label="Search" title="Search (Ctrl+K)">
                     <span class="search-icon">🔍</span>
                 </button>
@@ -75,10 +79,25 @@
         </div>
     </div>
 
+    <div id="graphModal" class="graph-modal" style="display: none;">
+        <div class="graph-backdrop"></div>
+        <div class="graph-container">
+            <div class="graph-header">
+                <h2>Knowledge Graph</h2>
+                <button id="graphClose" class="graph-close" aria-label="Close graph">✕</button>
+            </div>
+            <div id="graphCanvas" class="graph-canvas"></div>
+            <div class="graph-info">
+                <div id="graphStats" class="graph-stats"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.0.2/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
     <script>
         const API_BASE = window.location.origin;
 
@@ -595,6 +614,185 @@
                 }
             }
         });
+
+        let graphNetwork = null;
+        let graphData = null;
+
+        async function loadGraph() {
+            try {
+                const response = await fetch(`${API_BASE}/api/graph`);
+                graphData = await response.json();
+                return graphData;
+            } catch (error) {
+                console.error('Error loading graph:', error);
+                return null;
+            }
+        }
+
+        function openGraph() {
+            const modal = document.getElementById('graphModal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            if (!graphNetwork) {
+                renderGraph();
+            }
+        }
+
+        function closeGraph() {
+            const modal = document.getElementById('graphModal');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        async function renderGraph() {
+            const data = await loadGraph();
+            if (!data) {
+                console.error('Failed to load graph data');
+                return;
+            }
+
+            console.log('Graph data loaded:', data);
+
+            if (typeof vis === 'undefined') {
+                console.error('Vis.js library not loaded');
+                alert('Graph library not loaded. Please refresh the page.');
+                return;
+            }
+
+            const container = document.getElementById('graphCanvas');
+            if (!container) {
+                console.error('Graph canvas element not found');
+                return;
+            }
+
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+
+            const nodes = new vis.DataSet(data.nodes.map(node => ({
+                id: node.id,
+                label: node.label,
+                title: node.title,
+                shape: 'dot',
+                size: 15,
+                color: {
+                    background: isDark ? '#4da6ff' : '#0066cc',
+                    border: isDark ? '#66b3ff' : '#0052a3',
+                    highlight: {
+                        background: isDark ? '#66b3ff' : '#0052a3',
+                        border: isDark ? '#4da6ff' : '#0066cc'
+                    }
+                },
+                font: {
+                    color: isDark ? '#e0e0e0' : '#1a1a1a',
+                    size: 14
+                }
+            })));
+
+            const edges = new vis.DataSet(data.edges.map(edge => ({
+                from: edge.from,
+                to: edge.to,
+                arrows: 'to',
+                color: {
+                    color: isDark ? '#3a3a3a' : '#e0e0e0',
+                    highlight: isDark ? '#4da6ff' : '#0066cc'
+                },
+                smooth: {
+                    type: 'curvedCW',
+                    roundness: 0.2
+                }
+            })));
+
+            const graphDataVis = { nodes, edges };
+
+            const options = {
+                physics: {
+                    enabled: true,
+                    barnesHut: {
+                        gravitationalConstant: -2000,
+                        centralGravity: 0.3,
+                        springLength: 95,
+                        springConstant: 0.04,
+                        damping: 0.09
+                    },
+                    stabilization: {
+                        iterations: 200
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200,
+                    navigationButtons: true,
+                    keyboard: true
+                }
+            };
+
+            try {
+                graphNetwork = new vis.Network(container, graphDataVis, options);
+                console.log('Graph network created successfully');
+
+                graphNetwork.on('click', function(params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        closeGraph();
+                        navigateToFile(nodeId);
+                    }
+                });
+
+                graphNetwork.once('stabilizationIterationsDone', function() {
+                    graphNetwork.fit({
+                        animation: {
+                            duration: 500,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                    console.log('Graph fitted to view');
+                });
+
+                updateGraphStats(data);
+            } catch (error) {
+                console.error('Error creating graph network:', error);
+                alert('Error rendering graph: ' + error.message);
+            }
+        }
+
+        function updateGraphStats(data) {
+            const stats = document.getElementById('graphStats');
+            const nodeCount = data.nodes.length;
+            const edgeCount = data.edges.length;
+
+            const orphanedNodes = data.nodes.filter(node => {
+                const hasIncoming = data.edges.some(e => e.to === node.id);
+                const hasOutgoing = data.edges.some(e => e.from === node.id);
+                return !hasIncoming && !hasOutgoing;
+            });
+
+            stats.innerHTML = `
+                <div class="graph-stat-item">
+                    <span class="graph-stat-label">Files:</span>
+                    <span>${nodeCount}</span>
+                </div>
+                <div class="graph-stat-item">
+                    <span class="graph-stat-label">Links:</span>
+                    <span>${edgeCount}</span>
+                </div>
+                <div class="graph-stat-item">
+                    <span class="graph-stat-label">Orphaned:</span>
+                    <span>${orphanedNodes.length}</span>
+                </div>
+                <div class="graph-stat-item">
+                    <span class="graph-stat-label">Avg Links/File:</span>
+                    <span>${nodeCount > 0 ? (edgeCount / nodeCount).toFixed(2) : 0}</span>
+                </div>
+            `;
+        }
+
+        document.getElementById('graphToggle').addEventListener('click', () => {
+            console.log('Graph button clicked');
+            openGraph();
+        });
+        document.getElementById('graphClose').addEventListener('click', closeGraph);
+        document.querySelector('.graph-backdrop').addEventListener('click', closeGraph);
 
         initTheme();
         initSidebar();

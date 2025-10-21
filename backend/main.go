@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,22 @@ type FileInfo struct {
 	Name     string `json:"name"`
 	IsDir    bool   `json:"isDir"`
 	Children []FileInfo `json:"children,omitempty"`
+}
+
+type GraphNode struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Title string `json:"title"`
+}
+
+type GraphEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type GraphData struct {
+	Nodes []GraphNode `json:"nodes"`
+	Edges []GraphEdge `json:"edges"`
 }
 
 type ReloadBroadcaster struct {
@@ -86,6 +103,7 @@ func main() {
 
 	http.HandleFunc("/api/files", corsMiddleware(handleListFiles))
 	http.HandleFunc("/api/file/", corsMiddleware(handleGetFile))
+	http.HandleFunc("/api/graph", corsMiddleware(handleGraph))
 	http.HandleFunc("/api/events", corsMiddleware(handleSSE))
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
 
@@ -346,4 +364,137 @@ func handleGetFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(content)
+}
+
+func extractLinks(content, sourcePath string) []string {
+	var links []string
+
+	markdownLinkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	wikiLinkRegex := regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+
+	markdownMatches := markdownLinkRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range markdownMatches {
+		if len(match) > 2 {
+			link := match[2]
+			if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") && !strings.HasPrefix(link, "#") {
+				if strings.HasSuffix(link, ".md") || !strings.Contains(link, ".") {
+					links = append(links, link)
+				}
+			}
+		}
+	}
+
+	wikiMatches := wikiLinkRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range wikiMatches {
+		if len(match) > 1 {
+			link := match[1]
+			if !strings.HasSuffix(link, ".md") {
+				link = link + ".md"
+			}
+			links = append(links, link)
+		}
+	}
+
+	return links
+}
+
+func getAllMarkdownFiles(rootDir string) ([]string, error) {
+	var files []string
+	ignorePatterns := getIgnorePatterns()
+
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		if info.IsDir() {
+			if shouldIgnore(info.Name(), ignorePatterns) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+			relPath, _ := filepath.Rel(rootDir, path)
+			files = append(files, relPath)
+		}
+
+		return nil
+	})
+
+	return files, err
+}
+
+func resolveLink(sourcePath, link string) string {
+	link = strings.TrimSuffix(link, ".md") + ".md"
+
+	if !strings.HasPrefix(link, "/") && !strings.HasPrefix(link, "./") && !strings.HasPrefix(link, "../") {
+		sourceDir := filepath.Dir(sourcePath)
+		link = filepath.Join(sourceDir, link)
+	}
+
+	link = filepath.Clean(link)
+	return link
+}
+
+func handleGraph(w http.ResponseWriter, r *http.Request) {
+	markdownDir := getMarkdownDir()
+
+	files, err := getAllMarkdownFiles(markdownDir)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error reading files: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	nodes := make(map[string]GraphNode)
+	edges := []GraphEdge{}
+	linkMap := make(map[string][]string)
+
+	for _, filePath := range files {
+		fullPath := filepath.Join(markdownDir, filePath)
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			continue
+		}
+
+		nodes[filePath] = GraphNode{
+			ID:    filePath,
+			Label: filepath.Base(filePath),
+			Title: filePath,
+		}
+
+		links := extractLinks(string(content), filePath)
+		linkMap[filePath] = []string{}
+
+		for _, link := range links {
+			resolvedLink := resolveLink(filePath, link)
+			linkMap[filePath] = append(linkMap[filePath], resolvedLink)
+
+			if _, exists := nodes[resolvedLink]; !exists {
+				nodes[resolvedLink] = GraphNode{
+					ID:    resolvedLink,
+					Label: filepath.Base(resolvedLink),
+					Title: resolvedLink,
+				}
+			}
+
+			edges = append(edges, GraphEdge{
+				From: filePath,
+				To:   resolvedLink,
+			})
+		}
+	}
+
+	nodeList := []GraphNode{}
+	for _, node := range nodes {
+		nodeList = append(nodeList, node)
+	}
+
+	graphData := GraphData{
+		Nodes: nodeList,
+		Edges: edges,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(graphData)
 }
