@@ -617,6 +617,8 @@
 
         let graphNetwork = null;
         let graphData = null;
+        let graphNodes = null;
+        let graphEdges = null;
 
         async function loadGraph() {
             try {
@@ -627,6 +629,55 @@
                 console.error('Error loading graph:', error);
                 return null;
             }
+        }
+
+        function updateGraphHighlight(newCurrentFile) {
+            if (!graphNodes || !graphNetwork) return;
+
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark';
+
+            graphNodes.forEach(node => {
+                const isCurrentFile = node.id === newCurrentFile;
+
+                graphNodes.update({
+                    id: node.id,
+                    size: isCurrentFile ? 25 : 15,
+                    color: {
+                        background: isCurrentFile
+                            ? (isDark ? '#ff6b6b' : '#e74c3c')
+                            : (isDark ? '#4da6ff' : '#0066cc'),
+                        border: isCurrentFile
+                            ? (isDark ? '#ff8787' : '#c0392b')
+                            : (isDark ? '#66b3ff' : '#0052a3'),
+                        highlight: {
+                            background: isCurrentFile
+                                ? (isDark ? '#ff8787' : '#c0392b')
+                                : (isDark ? '#66b3ff' : '#0052a3'),
+                            border: isCurrentFile
+                                ? (isDark ? '#ff6b6b' : '#e74c3c')
+                                : (isDark ? '#4da6ff' : '#0066cc')
+                        }
+                    },
+                    font: {
+                        color: isDark ? '#e0e0e0' : '#1a1a1a',
+                        size: isCurrentFile ? 16 : 14,
+                        bold: isCurrentFile
+                    }
+                });
+            });
+
+            if (newCurrentFile && graphNodes.get(newCurrentFile)) {
+                graphNetwork.focus(newCurrentFile, {
+                    scale: 1.2,
+                    animation: {
+                        duration: 800,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            }
+
+            updateGraphStats(graphData);
         }
 
         function openGraph() {
@@ -669,27 +720,43 @@
             const currentTheme = document.documentElement.getAttribute('data-theme');
             const isDark = currentTheme === 'dark';
 
-            const nodes = new vis.DataSet(data.nodes.map(node => ({
-                id: node.id,
-                label: node.label,
-                title: node.title,
-                shape: 'dot',
-                size: 15,
-                color: {
-                    background: isDark ? '#4da6ff' : '#0066cc',
-                    border: isDark ? '#66b3ff' : '#0052a3',
-                    highlight: {
-                        background: isDark ? '#66b3ff' : '#0052a3',
-                        border: isDark ? '#4da6ff' : '#0066cc'
-                    }
-                },
-                font: {
-                    color: isDark ? '#e0e0e0' : '#1a1a1a',
-                    size: 14
-                }
-            })));
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentFile = urlParams.get('file');
 
-            const edges = new vis.DataSet(data.edges.map(edge => ({
+            graphNodes = new vis.DataSet(data.nodes.map(node => {
+                const isCurrentFile = node.id === currentFile;
+
+                return {
+                    id: node.id,
+                    label: node.label,
+                    title: node.title,
+                    shape: 'dot',
+                    size: isCurrentFile ? 25 : 15,
+                    color: {
+                        background: isCurrentFile
+                            ? (isDark ? '#ff6b6b' : '#e74c3c')
+                            : (isDark ? '#4da6ff' : '#0066cc'),
+                        border: isCurrentFile
+                            ? (isDark ? '#ff8787' : '#c0392b')
+                            : (isDark ? '#66b3ff' : '#0052a3'),
+                        highlight: {
+                            background: isCurrentFile
+                                ? (isDark ? '#ff8787' : '#c0392b')
+                                : (isDark ? '#66b3ff' : '#0052a3'),
+                            border: isCurrentFile
+                                ? (isDark ? '#ff6b6b' : '#e74c3c')
+                                : (isDark ? '#4da6ff' : '#0066cc')
+                        }
+                    },
+                    font: {
+                        color: isDark ? '#e0e0e0' : '#1a1a1a',
+                        size: isCurrentFile ? 16 : 14,
+                        bold: isCurrentFile
+                    }
+                };
+            }));
+
+            graphEdges = new vis.DataSet(data.edges.map(edge => ({
                 from: edge.from,
                 to: edge.to,
                 arrows: 'to',
@@ -703,7 +770,7 @@
                 }
             })));
 
-            const graphDataVis = { nodes, edges };
+            const graphDataVis = { nodes: graphNodes, edges: graphEdges };
 
             const options = {
                 physics: {
@@ -734,19 +801,37 @@
                 graphNetwork.on('click', function(params) {
                     if (params.nodes.length > 0) {
                         const nodeId = params.nodes[0];
-                        closeGraph();
                         navigateToFile(nodeId);
+                        updateGraphHighlight(nodeId);
+                    }
+                });
+
+                graphNetwork.on('doubleClick', function(params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        closeGraph();
                     }
                 });
 
                 graphNetwork.once('stabilizationIterationsDone', function() {
-                    graphNetwork.fit({
-                        animation: {
-                            duration: 500,
-                            easingFunction: 'easeInOutQuad'
-                        }
-                    });
-                    console.log('Graph fitted to view');
+                    if (currentFile && graphNodes.get(currentFile)) {
+                        graphNetwork.focus(currentFile, {
+                            scale: 1.2,
+                            animation: {
+                                duration: 800,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                        console.log('Graph centered on current file:', currentFile);
+                    } else {
+                        graphNetwork.fit({
+                            animation: {
+                                duration: 500,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                        console.log('Graph fitted to view');
+                    }
                 });
 
                 updateGraphStats(data);
@@ -761,13 +846,21 @@
             const nodeCount = data.nodes.length;
             const edgeCount = data.edges.length;
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentFile = urlParams.get('file');
+
             const orphanedNodes = data.nodes.filter(node => {
                 const hasIncoming = data.edges.some(e => e.to === node.id);
                 const hasOutgoing = data.edges.some(e => e.from === node.id);
                 return !hasIncoming && !hasOutgoing;
             });
 
-            stats.innerHTML = `
+            const currentFileLinks = currentFile ? {
+                outgoing: data.edges.filter(e => e.from === currentFile).length,
+                incoming: data.edges.filter(e => e.to === currentFile).length
+            } : null;
+
+            let statsHTML = `
                 <div class="graph-stat-item">
                     <span class="graph-stat-label">Files:</span>
                     <span>${nodeCount}</span>
@@ -785,6 +878,17 @@
                     <span>${nodeCount > 0 ? (edgeCount / nodeCount).toFixed(2) : 0}</span>
                 </div>
             `;
+
+            if (currentFileLinks) {
+                statsHTML += `
+                    <div class="graph-stat-item" style="margin-left: auto; color: var(--accent);">
+                        <span class="graph-stat-label">Current File:</span>
+                        <span>${currentFileLinks.outgoing} outgoing, ${currentFileLinks.incoming} incoming</span>
+                    </div>
+                `;
+            }
+
+            stats.innerHTML = statsHTML;
         }
 
         document.getElementById('graphToggle').addEventListener('click', () => {
