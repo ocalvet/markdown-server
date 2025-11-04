@@ -4,6 +4,12 @@ A lightweight web server for browsing and viewing markdown files with support fo
 
 ## Features
 
+- **Knowledge Graph**: Interactive visualization of connections between markdown files
+  - Click-to-navigate graph with physics simulation
+  - Auto-highlights current file and shows link statistics
+  - Discover orphaned files and connection patterns
+  - Supports both `[text](link.md)` and `[[wiki-style]]` links
+- **Collapsible Sidebar**: Toggle sidebar on all screen sizes with state persistence
 - **Full-Text Search**: Fuzzy search across all files and content with keyboard shortcut (Ctrl+K / Cmd+K)
 - **Markdown Rendering**: Full GitHub Flavored Markdown support
 - **Mermaid Diagrams**: Create flowcharts, sequence diagrams, and more
@@ -11,7 +17,7 @@ A lightweight web server for browsing and viewing markdown files with support fo
 - **Dark/Light Themes**: Toggle between themes with localStorage persistence
 - **Recursive File Browsing**: Navigate through nested folder structures with sidebar navigation
 - **Hot Reload**: Automatically updates when markdown files change
-- **Responsive Design**: Mobile-friendly with collapsible sidebar
+- **Responsive Design**: Mobile-friendly interface
 - **Configurable**: Set directory and port via environment variables
 - **Docker Support**: Easy deployment with optimized container image (~10-15MB)
 
@@ -19,13 +25,14 @@ A lightweight web server for browsing and viewing markdown files with support fo
 
 **Backend**:
 - Go 1.25.2
-- Standard library only (no external dependencies)
+- fsnotify for file watching (only external dependency)
 
 **Frontend**:
 - Marked.js v12.0.0 (Markdown parsing)
 - Mermaid.js v11.0.2 (Diagram rendering)
 - Highlight.js v11.11.1 (Syntax highlighting)
 - Fuse.js v7.0.0 (Fuzzy search)
+- Vis.js v9.1.9 (Knowledge graph visualization)
 
 ## Quick Start
 
@@ -143,6 +150,31 @@ Retrieves the content of a specific markdown file.
 
 **Response**: Raw markdown content
 
+### GET /api/graph
+Returns the knowledge graph data showing connections between files.
+
+**Response**:
+```json
+{
+  "nodes": [
+    {
+      "id": "file1.md",
+      "label": "file1.md",
+      "title": "file1.md"
+    }
+  ],
+  "edges": [
+    {
+      "from": "file1.md",
+      "to": "file2.md"
+    }
+  ]
+}
+```
+
+### GET /api/events
+Server-Sent Events endpoint for hot reload notifications.
+
 ## Configuration
 
 The server can be configured using environment variables:
@@ -217,6 +249,46 @@ The search indexes:
 ### Search Index
 
 The search index is built automatically when you load the viewer or files page. The index includes all markdown files and updates when the page reloads.
+
+## Knowledge Graph
+
+Visualize connections between your markdown files as an interactive network graph.
+
+### How to Use
+
+- **Open Graph**: Click the 🕸️ icon in the header
+- **Single-click node**: Navigate to that file (graph stays open, highlights update)
+- **Double-click**: Close the graph modal
+- **Drag nodes**: Rearrange the graph layout
+- **Zoom/Pan**: Use mouse wheel to zoom, drag background to pan
+- **Navigation controls**: Use built-in controls in bottom-right corner
+
+### Features
+
+- **Current File Highlighting**: Your current file appears larger and in red/pink
+- **Auto-centering**: Graph automatically centers on your current file
+- **Link Statistics**: Shows outgoing and incoming link counts for current file
+- **Orphaned Files**: Identifies files with no connections to other files
+- **Physics Simulation**: Organic graph layout that settles over time
+- **Theme Integration**: Adapts to light/dark mode
+
+### Link Support
+
+The knowledge graph detects two types of links:
+- **Standard Markdown**: `[Link Text](path/to/file.md)`
+- **Wiki-style**: `[[filename]]` or `[[path/to/file]]`
+
+Relative paths are resolved correctly based on the source file location.
+
+## Sidebar
+
+The sidebar can be collapsed on all screen sizes for a distraction-free reading experience.
+
+### How to Use
+
+- **Toggle**: Click the ☰ (hamburger) button in the header
+- **State Persistence**: Your preference is saved in localStorage
+- **Default**: Sidebar is open by default on desktop, closed on mobile
 
 ## Theme Colors
 

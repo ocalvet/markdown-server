@@ -19,6 +19,7 @@ A lightweight web server for browsing and viewing markdown files with real-time 
 - Mermaid.js v11.0.2 for diagrams
 - Highlight.js v11.11.1 for syntax highlighting
 - Fuse.js v7.0.0 for fuzzy search
+- Vis.js v9.1.9 for knowledge graph visualization
 
 ## Development Commands
 
@@ -76,8 +77,10 @@ The Go server is implemented as a single file with these key components:
 4. **API Endpoints**:
    - `GET /api/files` - Returns hierarchical file tree as JSON
    - `GET /api/file/:path` - Returns raw markdown content with path traversal protection
+   - `GET /api/graph` - Returns knowledge graph data (nodes and edges from link analysis)
    - `GET /api/events` - SSE endpoint for hot reload notifications
    - `/` - Static file server for frontend
+5. **Link Analysis**: Extracts markdown links `[text](path.md)` and wiki-style links `[[filename]]` to build knowledge graph
 
 ### Frontend Structure
 
@@ -88,15 +91,26 @@ The Go server is implemented as a single file with these key components:
 
 ### Key Frontend Features
 
-1. **File Navigation**: Sidebar with collapsible folders, active file highlighting, and smooth scrolling to current file
-2. **Search System**:
+1. **Knowledge Graph**: Interactive visualization using Vis.js
+   - Physics-based graph layout showing file connections
+   - Single-click to navigate (graph stays open), double-click to close
+   - Current file highlighted in red/pink, auto-centered with smooth animation
+   - Displays statistics: total files, links, orphaned files, current file link counts
+   - Dynamic highlight updates when navigating between files
+2. **Collapsible Sidebar**:
+   - Toggle button (☰) visible on all screen sizes
+   - State persisted in localStorage
+   - Uses margin-left animation on desktop, translateX on mobile
+   - Folders with active file auto-expand
+3. **File Navigation**: Sidebar with collapsible folders, active file highlighting, and smooth scrolling to current file
+4. **Search System**:
    - Builds client-side index of all files on page load
    - Searches across filenames, paths, and content (first 5000 chars per file)
    - Keyboard shortcut: Ctrl+K / Cmd+K
    - Arrow key navigation through results
-3. **Hot Reload**: EventSource connection to /api/events triggers content and file tree refresh on file changes
-4. **Theme System**: localStorage persistence, toggles between light/dark modes including syntax highlighting themes
-5. **History API**: Uses pushState/popState for seamless navigation without page reloads
+5. **Hot Reload**: EventSource connection to /api/events triggers content and file tree refresh on file changes
+6. **Theme System**: localStorage persistence, toggles between light/dark modes including syntax highlighting themes
+7. **History API**: Uses pushState/popState for seamless navigation without page reloads
 
 ### Configuration
 
@@ -137,6 +151,35 @@ Default ignore patterns include: node_modules, .git, .vscode, .idea, __pycache__
 - Folders containing current file auto-expand
 - Active file receives .active class and scrolls into view
 - Mobile: sidebar collapses on file selection
+
+### Knowledge Graph Implementation
+
+Backend (main.go):
+- `extractLinks(content, sourcePath)` - Regex-based extraction of markdown and wiki-style links
+- `getAllMarkdownFiles(rootDir)` - Walks directory tree to find all .md files
+- `resolveLink(sourcePath, link)` - Resolves relative/absolute paths correctly
+- `handleGraph()` - Builds nodes and edges, returns JSON graph data
+
+Frontend (viewer.html):
+- Graph modal with full-screen overlay and backdrop
+- Vis.js Network with physics simulation (barnesHut algorithm)
+- `graphNodes` and `graphEdges` stored as DataSets for dynamic updates
+- `updateGraphHighlight(newCurrentFile)` - Updates node colors/sizes and re-centers
+- Single-click navigates and updates highlight, double-click closes modal
+- Statistics calculated: total files, links, orphaned nodes, current file connections
+
+### Sidebar Implementation
+
+CSS (styles.css):
+- Desktop: `margin-left: -280px` to hide, `margin-left: 0` to show
+- Mobile: `position: fixed` with `translateX(-100%)` to hide
+- `.sidebar-open` class toggles visibility
+- `transition: all 0.3s ease` for smooth animation
+
+JavaScript (viewer.html):
+- `initSidebar()` - Restores sidebar state from localStorage on page load
+- Toggle button listener saves state: `localStorage.setItem('sidebarOpen', state)`
+- Default state: open on desktop, provides smooth UX
 
 ## Development Notes
 
