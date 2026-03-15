@@ -18,7 +18,8 @@ A lightweight web server for browsing and viewing markdown files with support fo
 - **Recursive File Browsing**: Navigate through nested folder structures with sidebar navigation
 - **Hot Reload**: Automatically updates when markdown files change
 - **Responsive Design**: Mobile-friendly interface
-- **Configurable**: Set directory and port via environment variables
+- **Configurable**: Set directory and port via CLI flags or environment variables
+- **Offline-Ready**: All frontend dependencies bundled locally (no CDN required)
 - **Docker Support**: Easy deployment with optimized container image (~10-15MB)
 
 ## Technology Stack
@@ -27,12 +28,13 @@ A lightweight web server for browsing and viewing markdown files with support fo
 - Go 1.25.2
 - fsnotify for file watching (only external dependency)
 
-**Frontend**:
+**Frontend** (all dependencies bundled locally):
 - Marked.js v12.0.0 (Markdown parsing)
 - Mermaid.js v11.0.2 (Diagram rendering)
 - Highlight.js v11.11.1 (Syntax highlighting)
 - Fuse.js v7.0.0 (Fuzzy search)
 - Vis.js v9.1.9 (Knowledge graph visualization)
+- js-yaml v4.1.0 (YAML frontmatter parsing)
 
 ## Quick Start
 
@@ -61,14 +63,54 @@ cd markdown-server
 ```bash
 cd markdown-server/backend
 
-# Use defaults
+# Use defaults (current directory, port 8703)
 go run main.go
+
+# With command-line flags
+go run main.go -p 9000 -d /path/to/files
+
+# With positional argument
+go run main.go /path/to/files
 
 # With environment variables
 MARKDOWN_DIR=/path/to/files PORT=8703 go run main.go
 ```
 
+**Note:** Command-line flags take precedence over environment variables.
+
 Open your browser to `http://localhost:8703`
+
+### Installing with Fuseki Installer
+
+The project includes a Fuseki installer for easy setup:
+
+```bash
+# Download and run the installer
+curl -sSL https://raw.githubusercontent.com/ocalvet/markdown-server/main/fuseki-install.sh | bash
+
+# Or clone and run locally
+git clone https://github.com/ocalvet/markdown-server.git
+cd markdown-server
+./fuseki-install.sh
+```
+
+After installation, use the `fuki` command:
+
+```bash
+# Show help
+fuki --help
+
+# Start server with markdown directory
+fuki -d /path/to/your/markdown
+
+# Start server with custom port
+fuki -p 9000 -d /path/to/your/markdown
+
+# Use current directory (default)
+fuki
+```
+
+See [FUSEKI_INSTALL.md](FUSEKI_INSTALL.md) for detailed instructions.
 
 ### Running with Docker
 
@@ -104,18 +146,17 @@ markdown-server/
 ├── backend/
 │   ├── main.go              # Go server
 │   ├── go.mod               # Go module definition
-│   └── markdown-files/      # Your markdown files (recursive)
-│       ├── welcome.md
-│       ├── tutorials/
-│       │   ├── mermaid-diagrams.md
-│       │   └── code-examples.md
-│       └── examples/
-│           └── markdown-features.md
+│   └── markdown-files/      # Default markdown files
 ├── frontend/
-│   ├── index.html           # File browser
+│   ├── index.html           # Landing page
+│   ├── files.html           # File browser
 │   ├── viewer.html          # Markdown viewer
 │   ├── styles.css           # Styles with theme support
-│   └── app.js               # (optional)
+│   └── vendor/              # Bundled frontend dependencies
+│       ├── css/             # highlight.js themes, vis-network
+│       └── js/              # marked, mermaid, highlight, fuse, vis-network, js-yaml
+├── fuseki-install.sh        # Installation script (installs as 'fuki')
+├── fuseki-uninstall.sh      # Uninstallation script
 ├── Dockerfile               # Multi-stage Docker build
 ├── .dockerignore
 └── README.md
@@ -177,11 +218,23 @@ Server-Sent Events endpoint for hot reload notifications.
 
 ## Configuration
 
-The server can be configured using environment variables:
+The server can be configured using **command-line flags** or **environment variables**. Flags take precedence over environment variables, which take precedence over defaults.
 
-- **MARKDOWN_DIR**: Directory containing markdown files (default: `./markdown-files`)
-- **PORT**: Server port (default: `8703`)
-- **IGNORE_PATTERNS**: Comma-separated list of patterns to ignore (optional)
+### Command-Line Flags
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--port` | `-p` | Server port | `8703` |
+| `--dir` | `-d` | Markdown directory | Current directory (`.`) |
+| `--help` | `-h` | Show usage information | |
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MARKDOWN_DIR` | Directory containing markdown files | Current directory (`.`) |
+| `PORT` | Server port | `8703` |
+| `IGNORE_PATTERNS` | Comma-separated list of patterns to ignore | See below |
 
 ### Default Ignore Patterns
 
@@ -197,20 +250,17 @@ The server automatically ignores these common directories:
 ### Examples
 
 ```bash
-# Set custom directory
-export MARKDOWN_DIR=/path/to/your/markdown/files
-go run main.go
+# Using CLI flags (recommended)
+fuki -d /path/to/files -p 9000
 
-# Set custom port
-export PORT=9000
-go run main.go
+# Using environment variables
+MARKDOWN_DIR=/path/to/files PORT=9000 fuki
 
-# Custom ignore patterns (replaces defaults)
-export IGNORE_PATTERNS="node_modules,.git,temp,cache"
-go run main.go
+# Flags override environment variables
+PORT=7777 fuki -p 9000  # Uses port 9000
 
-# All together
-MARKDOWN_DIR=/path/to/files PORT=9000 IGNORE_PATTERNS="build,dist" go run main.go
+# Custom ignore patterns (env var only, replaces defaults)
+IGNORE_PATTERNS="node_modules,.git,temp,cache" fuki -d /path/to/files
 ```
 
 ## Adding Your Own Markdown Files

@@ -15,11 +15,13 @@ A lightweight web server for browsing and viewing markdown files with real-time 
 
 **Frontend**:
 - Pure HTML/CSS/JavaScript (no build process)
+- All dependencies bundled locally in `frontend/vendor/` (no CDN)
 - Marked.js v12.0.0 for markdown parsing
 - Mermaid.js v11.0.2 for diagrams
 - Highlight.js v11.11.1 for syntax highlighting
 - Fuse.js v7.0.0 for fuzzy search
 - Vis.js v9.1.9 for knowledge graph visualization
+- js-yaml v4.1.0 for YAML frontmatter parsing
 
 ## Development Commands
 
@@ -36,8 +38,25 @@ A lightweight web server for browsing and viewing markdown files with real-time 
 cd backend
 go run main.go
 
+# With command-line flags (flags take precedence over env vars)
+cd backend
+go run main.go -p 9000 -d /path/to/files
+
 # With environment variables
 MARKDOWN_DIR=/path/to/files PORT=8703 IGNORE_PATTERNS="temp,cache" go run main.go
+```
+
+### Installing as CLI (Fuseki / fuki)
+
+```bash
+# Run the installer (installs binary as 'fuki' to ~/.local/bin)
+./fuseki-install.sh
+
+# After installation
+fuki                              # Serve current directory on port 8703
+fuki -d /path/to/docs             # Serve specific directory
+fuki -p 9000 -d /path/to/docs    # Custom port and directory
+fuki --help                       # Show usage
 ```
 
 ### Building
@@ -114,8 +133,13 @@ The Go server is implemented as a single file with these key components:
 
 ### Configuration
 
+Command-line flags (take precedence over env vars):
+- **-p, --port**: Server port (default: 8703)
+- **-d, --dir**: Markdown directory (default: current directory)
+- **-h, --help**: Show usage information
+
 Environment variables:
-- **MARKDOWN_DIR**: Directory to serve (default: ./markdown-files)
+- **MARKDOWN_DIR**: Directory to serve (default: current directory)
 - **PORT**: Server port (default: 8703)
 - **IGNORE_PATTERNS**: Comma-separated patterns to ignore (overrides defaults if set)
 
@@ -185,6 +209,7 @@ JavaScript (viewer.html):
 
 - No test suite exists currently
 - No linting configuration
-- Frontend has no build process - all libraries loaded via CDN
+- Frontend has no build process - all libraries bundled locally in `frontend/vendor/`
 - Docker image uses multi-stage build resulting in ~10-15MB final size
-- The backend must be run from backend/ directory as it serves ../frontend
+- The backend auto-discovers the frontend directory relative to the executable path, then falls back to `../frontend` (development mode)
+- The installer (`fuseki-install.sh`) copies the frontend alongside the binary to `~/.local/bin/frontend/`

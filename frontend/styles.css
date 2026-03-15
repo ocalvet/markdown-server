@@ -1135,3 +1135,255 @@ main {
         font-size: 0.85rem;
     }
 }
+
+/* ─── TOC Toggle Button ─────────────────────────────────────────────────── */
+.toc-toggle {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 1.25rem;
+    font-weight: 700;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.toc-toggle:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    transform: scale(1.05);
+}
+
+/* ─── TOC Right Panel ───────────────────────────────────────────────────── */
+.toc-panel {
+    width: 240px;
+    flex-shrink: 0;
+    background-color: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    position: sticky;
+    top: 80px;
+    max-height: calc(100vh - 80px);
+    transition: all 0.3s ease;
+    margin-right: -240px;
+}
+
+.toc-panel.toc-open {
+    margin-right: 0;
+}
+
+.toc-header {
+    padding: 1.25rem 1rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.toc-nav {
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.toc-link {
+    display: block;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 4px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.toc-link:hover {
+    color: var(--accent);
+    background: var(--bg-hover);
+}
+
+.toc-link.toc-active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--bg-hover);
+    font-weight: 500;
+}
+
+.toc-empty {
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+@media (max-width: 1100px) {
+    .toc-panel {
+        display: none;
+    }
+}
+
+/* ─── Heading Anchors ───────────────────────────────────────────────────── */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    position: relative;
+}
+
+.heading-anchor {
+    font-size: 0.85em;
+    margin-left: 0.4em;
+    color: var(--text-secondary);
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    vertical-align: middle;
+}
+
+.markdown-content h1:hover .heading-anchor,
+.markdown-content h2:hover .heading-anchor,
+.markdown-content h3:hover .heading-anchor,
+.markdown-content h4:hover .heading-anchor,
+.markdown-content h5:hover .heading-anchor,
+.markdown-content h6:hover .heading-anchor {
+    opacity: 1;
+}
+
+.heading-anchor:hover {
+    color: var(--accent);
+}
+
+/* ─── Frontmatter Display ───────────────────────────────────────────────── */
+.frontmatter-display {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.875rem 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.fm-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+}
+
+.fm-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.fm-key {
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.fm-key::after {
+    content: ':';
+}
+
+.fm-value {
+    color: var(--text-primary);
+}
+
+.fm-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.fm-tag {
+    background: var(--accent);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-weight: 500;
+}
+
+/* ─── Backlinks Panel ───────────────────────────────────────────────────── */
+.backlinks-panel {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1.5rem;
+}
+
+.backlinks-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.backlinks-icon {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.backlinks-header h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.backlinks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.backlink-item {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.875rem;
+    transition: border-color 0.15s ease;
+}
+
+.backlink-item:hover {
+    border-color: var(--accent);
+}
+
+.backlink-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--accent);
+    text-decoration: none;
+    display: block;
+}
+
+.backlink-name:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.backlink-context {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

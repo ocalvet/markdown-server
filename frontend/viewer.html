@@ -6,9 +6,9 @@
     <title>Markdown Viewer</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" id="hljs-light">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" id="hljs-dark" disabled>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.css">
+    <link rel="stylesheet" href="vendor/css/github.min.css" id="hljs-light">
+    <link rel="stylesheet" href="vendor/css/github-dark.min.css" id="hljs-dark" disabled>
+    <link rel="stylesheet" href="vendor/css/vis-network.min.css">
 </head>
 <body>
     <header>
@@ -25,6 +25,9 @@
                 </a>
             </div>
             <div class="header-right">
+                <button id="tocToggle" class="toc-toggle" aria-label="Table of Contents" title="Table of Contents">
+                    <span class="toc-icon">≡</span>
+                </button>
                 <button id="graphToggle" class="graph-toggle" aria-label="Knowledge Graph" title="Knowledge Graph">
                     <span class="graph-icon">🕸️</span>
                 </button>
@@ -53,10 +56,26 @@
             <div id="loadingIndicator" class="loading-indicator" style="display: none;">
                 <div class="loading-bar"></div>
             </div>
+            <!-- Feature 3: Frontmatter display -->
+            <div id="frontmatterDisplay" class="frontmatter-display" style="display: none;"></div>
             <article id="content" class="markdown-content">
                 <div class="loading">Loading content...</div>
             </article>
+            <!-- Feature 5: Backlinks panel -->
+            <div id="backlinksPanel" class="backlinks-panel" style="display: none;">
+                <div class="backlinks-header">
+                    <span class="backlinks-icon">←</span>
+                    <h3>Linked from</h3>
+                </div>
+                <div id="backlinksList" class="backlinks-list"></div>
+            </div>
         </main>
+
+        <!-- Feature 4: TOC right-side panel -->
+        <aside id="tocPanel" class="toc-panel">
+            <div class="toc-header">On this page</div>
+            <nav id="tocNav" class="toc-nav"></nav>
+        </aside>
     </div>
 
     <div id="searchModal" class="search-modal" style="display: none;">
@@ -93,53 +112,43 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.0.2/mermaid.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/vis-network.min.js"></script>
+    <script src="vendor/js/marked.min.js"></script>
+    <script src="vendor/js/mermaid.min.js"></script>
+    <script src="vendor/js/highlight.min.js"></script>
+    <script src="vendor/js/fuse.min.js"></script>
+    <script src="vendor/js/vis-network.min.js"></script>
+    <script src="vendor/js/js-yaml.min.js"></script>
     <script>
         const API_BASE = window.location.origin;
 
+        // ─── Theme ────────────────────────────────────────────────────────────
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
             updateHighlightTheme(savedTheme);
         }
 
-        function initSidebar() {
-            const savedSidebarState = localStorage.getItem('sidebarOpen');
-            const sidebar = document.getElementById('sidebar');
-
-            if (savedSidebarState !== null) {
-                if (savedSidebarState === 'true') {
-                    sidebar.classList.add('sidebar-open');
-                } else {
-                    sidebar.classList.remove('sidebar-open');
-                }
-            }
-        }
-
         function updateHighlightTheme(theme) {
-            const lightTheme = document.getElementById('hljs-light');
-            const darkTheme = document.getElementById('hljs-dark');
-
-            if (theme === 'dark') {
-                lightTheme.disabled = true;
-                darkTheme.disabled = false;
-            } else {
-                lightTheme.disabled = false;
-                darkTheme.disabled = true;
-            }
+            document.getElementById('hljs-light').disabled = (theme === 'dark');
+            document.getElementById('hljs-dark').disabled  = (theme !== 'dark');
         }
 
         document.getElementById('themeToggle').addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateHighlightTheme(newTheme);
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateHighlightTheme(next);
         });
+
+        // ─── Sidebar ──────────────────────────────────────────────────────────
+        function initSidebar() {
+            const saved = localStorage.getItem('sidebarOpen');
+            const sidebar = document.getElementById('sidebar');
+            if (saved !== null) {
+                sidebar.classList.toggle('sidebar-open', saved === 'true');
+            }
+        }
 
         document.getElementById('sidebarToggle').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -151,7 +160,6 @@
         document.addEventListener('click', (e) => {
             const sidebar = document.getElementById('sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
-
             if (window.innerWidth <= 768 &&
                 sidebar.classList.contains('sidebar-open') &&
                 !sidebar.contains(e.target) &&
@@ -160,6 +168,97 @@
             }
         });
 
+        // ─── TOC Panel ────────────────────────────────────────────────────────
+        function initTOC() {
+            const saved = localStorage.getItem('tocOpen');
+            const panel = document.getElementById('tocPanel');
+            // Default: open on desktop, closed on mobile
+            const defaultOpen = window.innerWidth > 1100;
+            panel.classList.toggle('toc-open', saved !== null ? saved === 'true' : defaultOpen);
+        }
+
+        document.getElementById('tocToggle').addEventListener('click', () => {
+            const panel = document.getElementById('tocPanel');
+            panel.classList.toggle('toc-open');
+            localStorage.setItem('tocOpen', panel.classList.contains('toc-open'));
+        });
+
+        let tocObserver = null;
+
+        function generateTOC() {
+            const content = document.getElementById('content');
+            const tocNav  = document.getElementById('tocNav');
+            const panel   = document.getElementById('tocPanel');
+            const headings = Array.from(content.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+            // Disconnect previous observer
+            if (tocObserver) { tocObserver.disconnect(); tocObserver = null; }
+
+            if (headings.length === 0) {
+                tocNav.innerHTML = '<div class="toc-empty">No headings found</div>';
+                return;
+            }
+
+            // Assign IDs and add anchor links to each heading
+            const slugCount = {};
+            headings.forEach(h => {
+                let slug = h.textContent
+                    .toLowerCase()
+                    .replace(/[^\w\s-]/g, '')
+                    .trim()
+                    .replace(/\s+/g, '-');
+                if (slugCount[slug] !== undefined) {
+                    slugCount[slug]++;
+                    slug = `${slug}-${slugCount[slug]}`;
+                } else {
+                    slugCount[slug] = 0;
+                }
+                h.id = slug;
+
+                // Add hover anchor link
+                const anchor = document.createElement('a');
+                anchor.className = 'heading-anchor';
+                anchor.href = `#${slug}`;
+                anchor.textContent = '#';
+                anchor.setAttribute('aria-hidden', 'true');
+                h.appendChild(anchor);
+            });
+
+            // Build nested TOC list
+            const minLevel = Math.min(...headings.map(h => parseInt(h.tagName[1])));
+            const items = headings.map(h => {
+                const level = parseInt(h.tagName[1]);
+                const indent = level - minLevel;
+                const link = document.createElement('a');
+                link.href = `#${h.id}`;
+                link.className = 'toc-link';
+                link.style.paddingLeft = `${indent * 12}px`;
+                link.textContent = h.textContent.replace(/#$/, '').trim();
+                link.dataset.headingId = h.id;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                return link;
+            });
+
+            tocNav.innerHTML = '';
+            items.forEach(item => tocNav.appendChild(item));
+
+            // IntersectionObserver to highlight active heading
+            tocObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const link = tocNav.querySelector(`[data-heading-id="${entry.target.id}"]`);
+                    if (link) {
+                        link.classList.toggle('toc-active', entry.isIntersecting);
+                    }
+                });
+            }, { rootMargin: '0px 0px -80% 0px', threshold: 0 });
+
+            headings.forEach(h => tocObserver.observe(h));
+        }
+
+        // ─── File Tree ────────────────────────────────────────────────────────
         function renderFileTree(files, container, level = 0, currentFilePath = '') {
             files.forEach(file => {
                 if (file.isDir) {
@@ -177,9 +276,7 @@
                     folderContent.style.display = 'none';
                     folderItem.appendChild(folderContent);
 
-                    // Check if this folder contains the current file
                     const containsCurrentFile = currentFilePath.startsWith(file.path + '/');
-
                     if (containsCurrentFile) {
                         folderContent.style.display = 'block';
                         folderHeader.querySelector('.folder-toggle').textContent = '▾';
@@ -207,20 +304,14 @@
                     const urlParams = new URLSearchParams(window.location.search);
                     if (file.path === urlParams.get('file')) {
                         fileItem.classList.add('active');
-                        // Scroll active file into view
-                        setTimeout(() => {
-                            fileItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        }, 100);
+                        setTimeout(() => fileItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
                     }
 
                     fileItem.addEventListener('click', (e) => {
                         e.preventDefault();
                         navigateToFile(file.path);
-
                         if (window.innerWidth <= 768) {
-                            setTimeout(() => {
-                                document.getElementById('sidebar').classList.remove('sidebar-open');
-                            }, 100);
+                            setTimeout(() => document.getElementById('sidebar').classList.remove('sidebar-open'), 100);
                         }
                     });
 
@@ -231,32 +322,31 @@
 
         async function loadFileTree(forceRefresh = false) {
             try {
-                // Use cached data unless force refresh is requested
-                if (!forceRefresh && fileTreeData) {
-                    renderCachedFileTree();
-                    return;
+                if (!forceRefresh && fileTreeData) { renderCachedFileTree(); return; }
+
+                const cacheKey = CacheManager.getKey('fileTree', 'all');
+                if (!forceRefresh) {
+                    const cached = CacheManager.get(cacheKey);
+                    if (cached) {
+                        fileTreeData = cached;
+                        renderCachedFileTree();
+                        return;
+                    }
                 }
 
                 const response = await fetch(`${API_BASE}/api/files`);
-                const files = await response.json();
-                fileTreeData = files;
-
+                fileTreeData = await response.json();
+                CacheManager.set(cacheKey, fileTreeData);
                 renderCachedFileTree();
             } catch (error) {
-                document.getElementById('sidebarNav').innerHTML =
-                    '<div class="error">Error loading files</div>';
-                console.error('Error loading files:', error);
+                document.getElementById('sidebarNav').innerHTML = '<div class="error">Error loading files</div>';
             }
         }
 
         function renderCachedFileTree() {
             const container = document.getElementById('sidebarNav');
             container.innerHTML = '';
-
-            // Get current file path from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentFile = urlParams.get('file') || '';
-
+            const currentFile = new URLSearchParams(window.location.search).get('file') || '';
             if (!fileTreeData || fileTreeData.length === 0) {
                 container.innerHTML = '<div class="empty-state">No files found</div>';
             } else {
@@ -265,302 +355,427 @@
         }
 
         function navigateToFile(filePath) {
-            // Update URL without page reload
-            const newUrl = `viewer.html?file=${encodeURIComponent(filePath)}`;
-            window.history.pushState({ filePath }, '', newUrl);
-
-            // Load the new file content
+            window.history.pushState({ filePath }, '', `viewer.html?file=${encodeURIComponent(filePath)}`);
             loadMarkdown();
-
-            // Update sidebar highlighting (without re-fetching)
             renderCachedFileTree();
         }
 
-        // Handle browser back/forward buttons
-        window.addEventListener('popstate', (event) => {
-            if (event.state && event.state.filePath) {
-                loadMarkdown();
-                renderCachedFileTree();
-            }
-        });
+        window.addEventListener('popstate', () => { loadMarkdown(); renderCachedFileTree(); });
 
+        // ─── Breadcrumb ───────────────────────────────────────────────────────
         function renderBreadcrumb(filePath) {
             const parts = filePath.split('/');
-            const breadcrumb = document.getElementById('breadcrumb');
-            breadcrumb.innerHTML = parts.map((part, index) => {
-                if (index === parts.length - 1) {
-                    return `<span class="breadcrumb-current">${part}</span>`;
-                }
-                return `<span class="breadcrumb-item">${part}</span>`;
-            }).join('<span class="breadcrumb-separator">/</span>');
+            document.getElementById('breadcrumb').innerHTML = parts.map((part, i) =>
+                i === parts.length - 1
+                    ? `<span class="breadcrumb-current">${part}</span>`
+                    : `<span class="breadcrumb-item">${part}</span>`
+            ).join('<span class="breadcrumb-separator">/</span>');
         }
 
-        async function loadMarkdown() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const filePath = urlParams.get('file');
+        // ─── Feature 3: Frontmatter ───────────────────────────────────────────
+        function parseFrontmatter(markdown) {
+            if (!markdown.startsWith('---')) {
+                return { frontmatter: null, content: markdown };
+            }
+            const end = markdown.indexOf('\n---', 3);
+            if (end === -1) {
+                return { frontmatter: null, content: markdown };
+            }
+            const yamlStr = markdown.slice(3, end).trim();
+            const remaining = markdown.slice(end + 4).trimStart();
+            try {
+                const fm = (typeof jsyaml !== 'undefined')
+                    ? jsyaml.load(yamlStr)
+                    : parseSimpleYAML(yamlStr);
+                return { frontmatter: fm && typeof fm === 'object' ? fm : null, content: remaining };
+            } catch (e) {
+                return { frontmatter: null, content: remaining };
+            }
+        }
 
+        // Simple fallback YAML parser (key: value only)
+        function parseSimpleYAML(str) {
+            const result = {};
+            str.split('\n').forEach(line => {
+                const m = line.match(/^([^:]+):\s*(.*)$/);
+                if (m) result[m[1].trim()] = m[2].trim();
+            });
+            return result;
+        }
+
+        function renderFrontmatter(fm) {
+            const el = document.getElementById('frontmatterDisplay');
+            if (!fm || Object.keys(fm).length === 0) { el.style.display = 'none'; return; }
+
+            const priorityKeys = ['title', 'description', 'author', 'date', 'tags'];
+            const allKeys = [...new Set([...priorityKeys.filter(k => k in fm), ...Object.keys(fm).filter(k => !priorityKeys.includes(k))])];
+
+            const parts = allKeys.map(key => {
+                const val = fm[key];
+                if (key === 'tags') {
+                    const tags = Array.isArray(val) ? val : String(val).split(',').map(t => t.trim());
+                    const tagHTML = tags.map(t => `<span class="fm-tag">${escapeHTML(t)}</span>`).join('');
+                    return `<div class="fm-item"><span class="fm-key">tags</span><span class="fm-tags">${tagHTML}</span></div>`;
+                }
+                if (key === 'date' && val) {
+                    const d = new Date(val);
+                    const formatted = isNaN(d) ? val : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+                    return `<div class="fm-item"><span class="fm-key">${escapeHTML(key)}</span><span class="fm-value">${escapeHTML(formatted)}</span></div>`;
+                }
+                if (Array.isArray(val)) {
+                    return `<div class="fm-item"><span class="fm-key">${escapeHTML(key)}</span><span class="fm-value">${escapeHTML(val.join(', '))}</span></div>`;
+                }
+                return `<div class="fm-item"><span class="fm-key">${escapeHTML(key)}</span><span class="fm-value">${escapeHTML(String(val))}</span></div>`;
+            });
+
+            el.innerHTML = `<div class="fm-grid">${parts.join('')}</div>`;
+            el.style.display = 'block';
+        }
+
+        function escapeHTML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // ─── Feature 2: Internal link + image resolution ──────────────────────
+        function interceptContentLinks(filePath) {
+            const content = document.getElementById('content');
+            const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '';
+
+            // Rewrite <a> links pointing to .md files
+            content.querySelectorAll('a[href]').forEach(a => {
+                const href = a.getAttribute('href');
+                if (!href || href.startsWith('http') || href.startsWith('#') || href.startsWith('mailto:')) return;
+
+                // Strip anchor fragment
+                const [pathPart, fragment] = href.split('#');
+                let target = pathPart;
+
+                // Resolve relative to current file's directory
+                if (!target.startsWith('/')) {
+                    target = fileDir ? `${fileDir}/${target}` : target;
+                } else {
+                    target = target.slice(1); // strip leading /
+                }
+                // Normalize path segments (handle ../ etc.)
+                target = normalizePath(target);
+
+                // Ensure .md extension
+                if (!target.endsWith('.md')) target += '.md';
+
+                a.href = `viewer.html?file=${encodeURIComponent(target)}${fragment ? '#' + fragment : ''}`;
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    navigateToFile(target);
+                    if (fragment) {
+                        setTimeout(() => {
+                            const el = document.getElementById(fragment);
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }, 300);
+                    }
+                });
+            });
+
+            // Rewrite <img> src pointing to local files
+            content.querySelectorAll('img[src]').forEach(img => {
+                const src = img.getAttribute('src');
+                if (!src || src.startsWith('http') || src.startsWith('data:')) return;
+                let assetPath = src.startsWith('/') ? src.slice(1) : (fileDir ? `${fileDir}/${src}` : src);
+                assetPath = normalizePath(assetPath);
+                img.src = `${API_BASE}/api/asset/${assetPath}`;
+            });
+        }
+
+        // Normalize a path: resolve . and .. segments
+        function normalizePath(path) {
+            const parts = path.split('/');
+            const result = [];
+            for (const part of parts) {
+                if (part === '..') result.pop();
+                else if (part !== '.') result.push(part);
+            }
+            return result.join('/');
+        }
+
+        // ─── Feature 5: Backlinks ─────────────────────────────────────────────
+        async function loadBacklinks(filePath) {
+            const panel = document.getElementById('backlinksPanel');
+            const list  = document.getElementById('backlinksList');
+            try {
+                const resp = await fetch(`${API_BASE}/api/backlinks/${filePath}`);
+                if (!resp.ok) { panel.style.display = 'none'; return; }
+                const data = await resp.json();
+                const links = data.backlinks || [];
+                if (links.length === 0) { panel.style.display = 'none'; return; }
+
+                list.innerHTML = links.map(bl => `
+                    <div class="backlink-item" data-path="${escapeHTML(bl.path)}">
+                        <a href="viewer.html?file=${encodeURIComponent(bl.path)}" class="backlink-name">📄 ${escapeHTML(bl.name)}</a>
+                        ${bl.context ? `<div class="backlink-context">${escapeHTML(bl.context)}</div>` : ''}
+                    </div>
+                `).join('');
+
+                list.querySelectorAll('.backlink-item').forEach(item => {
+                    item.querySelector('.backlink-name').addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToFile(item.dataset.path);
+                    });
+                });
+
+                panel.style.display = 'block';
+            } catch (e) {
+                panel.style.display = 'none';
+            }
+        }
+
+        // ─── loadMarkdown ─────────────────────────────────────────────────────
+        async function loadMarkdown(forceRefresh = false) {
+            const filePath = new URLSearchParams(window.location.search).get('file');
             if (!filePath) {
-                document.getElementById('content').innerHTML =
-                    '<div class="error">No file specified</div>';
+                document.getElementById('content').innerHTML = '<div class="error">No file specified</div>';
+                document.getElementById('frontmatterDisplay').style.display = 'none';
+                document.getElementById('backlinksPanel').style.display = 'none';
+                document.getElementById('tocNav').innerHTML = '';
                 return;
             }
 
             const loadingIndicator = document.getElementById('loadingIndicator');
-
             try {
-                // Show loading indicator
                 loadingIndicator.style.display = 'block';
-
                 document.getElementById('fileName').textContent = filePath.split('/').pop();
                 renderBreadcrumb(filePath);
 
-                const response = await fetch(`${API_BASE}/api/file/${filePath}`);
-                if (!response.ok) throw new Error('File not found');
+                // Cache lookup
+                const cacheKey = CacheManager.getKey('file', filePath);
+                let rawMarkdown;
+                if (!forceRefresh) {
+                    const cached = CacheManager.get(cacheKey);
+                    if (cached) rawMarkdown = cached.content;
+                }
+                if (!rawMarkdown) {
+                    const response = await fetch(`${API_BASE}/api/file/${filePath}`);
+                    if (!response.ok) throw new Error('File not found');
+                    rawMarkdown = await response.text();
+                    CacheManager.set(cacheKey, { content: rawMarkdown, timestamp: Date.now() });
+                }
 
-                const markdown = await response.text();
+                // Feature 3: parse and strip frontmatter before rendering
+                const { frontmatter, content: markdownBody } = parseFrontmatter(rawMarkdown);
+                renderFrontmatter(frontmatter);
+
+                // Update page title from frontmatter if available
+                if (frontmatter && frontmatter.title) {
+                    document.getElementById('fileName').textContent = frontmatter.title;
+                }
 
                 marked.setOptions({
-                    highlight: function(code, lang) {
-                        if (lang && hljs.getLanguage(lang)) {
-                            return hljs.highlight(code, { language: lang }).value;
-                        }
+                    highlight: (code, lang) => {
+                        if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
                         return hljs.highlightAuto(code).value;
                     },
                     breaks: true,
                     gfm: true
                 });
 
-                const html = marked.parse(markdown);
-                document.getElementById('content').innerHTML = html;
+                document.getElementById('content').innerHTML = marked.parse(markdownBody);
+
+                // Feature 2: rewrite internal links and image URLs
+                interceptContentLinks(filePath);
+
+                // Feature 4: generate TOC from rendered headings
+                generateTOC();
 
                 if (typeof mermaid !== 'undefined') {
                     mermaid.initialize({
                         startOnLoad: true,
                         theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
                     });
-                    await mermaid.run({
-                        querySelector: '.language-mermaid'
-                    });
+                    await mermaid.run({ querySelector: '.language-mermaid' });
                 }
 
-                // Hide loading indicator
                 loadingIndicator.style.display = 'none';
+
+                // Feature 5: load backlinks (non-blocking)
+                loadBacklinks(filePath);
 
             } catch (error) {
-                // Hide loading indicator on error
                 loadingIndicator.style.display = 'none';
-
-                document.getElementById('content').innerHTML =
-                    '<div class="error">Error loading file. Please try again.</div>';
+                document.getElementById('content').innerHTML = '<div class="error">Error loading file. Please try again.</div>';
                 console.error('Error loading markdown:', error);
             }
         }
 
+        // ─── Hot Reload ───────────────────────────────────────────────────────
         function initHotReload() {
-            try {
-                const eventSource = new EventSource(`${API_BASE}/api/events`);
-
-                eventSource.onmessage = (event) => {
-                    if (event.data === 'reload') {
-                        console.log('File change detected, refreshing file tree and content...');
-                        loadMarkdown();
-                        loadFileTree(true); // Force refresh from backend
-                        buildSearchIndex(); // Rebuild search index with new files
-                    }
-                };
-
-                eventSource.onerror = (error) => {
-                    console.log('Hot reload not available, continuing without it');
-                    eventSource.close();
-                };
-
-                eventSource.addEventListener('connected', () => {
-                    console.log('Hot reload connected');
-                });
-            } catch (error) {
-                console.log('Hot reload not available');
+            let reconnectDelay = 1000;
+            function connect() {
+                try {
+                    const eventSource = new EventSource(`${API_BASE}/api/events`);
+                    eventSource.onmessage = (event) => {
+                        if (event.data === 'reload') {
+                            CacheManager.remove(CacheManager.getKey('fileTree', 'all'));
+                            const fp = new URLSearchParams(window.location.search).get('file');
+                            if (fp) CacheManager.remove(CacheManager.getKey('file', fp));
+                            loadMarkdown(true);
+                            loadFileTree(true);
+                            buildSearchIndex();
+                        }
+                    };
+                    eventSource.addEventListener('connected', () => {
+                        reconnectDelay = 1000;
+                        console.log('Hot reload connected');
+                    });
+                    eventSource.onerror = () => {
+                        eventSource.close();
+                        setTimeout(connect, reconnectDelay);
+                        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+                    };
+                } catch (e) {
+                    console.log('Hot reload not available');
+                }
             }
+            connect();
         }
 
+        // ─── State ────────────────────────────────────────────────────────────
         let fileTreeData = null;
-        let searchIndex = [];
-        let fuse = null;
+        let searchIndex  = [];
+        let fuse         = null;
 
+        // ─── Cache Manager ────────────────────────────────────────────────────
+        const CacheManager = {
+            maxCacheSize: 5 * 1024 * 1024,
+            currentSize: 0,
+            getKey(type, path) { return `markdown-server:${type}:${path}`; },
+            get(key) {
+                try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : null; }
+                catch { return null; }
+            },
+            set(key, value) {
+                try {
+                    const item = JSON.stringify(value);
+                    this.currentSize += item.length * 2;
+                    if (this.currentSize > this.maxCacheSize * 0.9) this.evictOldest();
+                    localStorage.setItem(key, item);
+                    return true;
+                } catch { return false; }
+            },
+            remove(key) { try { localStorage.removeItem(key); } catch {} },
+            clear() {
+                try {
+                    Object.keys(localStorage).filter(k => k.startsWith('markdown-server:')).forEach(k => localStorage.removeItem(k));
+                    this.currentSize = 0;
+                } catch {}
+            },
+            evictOldest() { console.log('Cache limit reached, clearing'); this.clear(); }
+        };
+
+        // ─── Search ───────────────────────────────────────────────────────────
         async function buildSearchIndex() {
             try {
                 const response = await fetch(`${API_BASE}/api/files`);
                 const files = await response.json();
-
                 const indexPromises = [];
 
-                function collectFiles(fileList) {
-                    fileList.forEach(file => {
+                function collectFiles(list) {
+                    list.forEach(file => {
                         if (file.isDir && file.children) {
                             collectFiles(file.children);
                         } else if (!file.isDir) {
-                            indexPromises.push(
-                                fetch(`${API_BASE}/api/file/${file.path}`)
-                                    .then(r => r.text())
-                                    .then(content => ({
-                                        name: file.name,
-                                        path: file.path,
-                                        content: content.substring(0, 5000)
-                                    }))
-                                    .catch(() => null)
-                            );
+                            indexPromises.push((async () => {
+                                const cacheKey = CacheManager.getKey('file', file.path);
+                                const cached = CacheManager.get(cacheKey);
+                                if (cached) return { name: file.name, path: file.path, content: cached.content.substring(0, 5000) };
+                                try {
+                                    const r = await fetch(`${API_BASE}/api/file/${file.path}`);
+                                    const content = await r.text();
+                                    CacheManager.set(cacheKey, { content, timestamp: Date.now() });
+                                    return { name: file.name, path: file.path, content: content.substring(0, 5000) };
+                                } catch { return null; }
+                            })());
                         }
                     });
                 }
 
                 collectFiles(files);
-                searchIndex = (await Promise.all(indexPromises)).filter(item => item !== null);
-
+                searchIndex = (await Promise.all(indexPromises)).filter(Boolean);
                 fuse = new Fuse(searchIndex, {
-                    keys: [
-                        { name: 'name', weight: 2 },
-                        { name: 'path', weight: 1.5 },
-                        { name: 'content', weight: 1 }
-                    ],
-                    threshold: 0.4,
-                    includeMatches: true,
-                    minMatchCharLength: 2,
-                    ignoreLocation: true
+                    keys: [{ name: 'name', weight: 2 }, { name: 'path', weight: 1.5 }, { name: 'content', weight: 1 }],
+                    threshold: 0.4, includeMatches: true, minMatchCharLength: 2, ignoreLocation: true
                 });
-
                 console.log(`Search index built: ${searchIndex.length} files`);
-            } catch (error) {
-                console.error('Error building search index:', error);
+            } catch (e) {
+                console.error('Error building search index:', e);
             }
         }
 
         function openSearch() {
-            const modal = document.getElementById('searchModal');
-            const input = document.getElementById('searchInput');
-            modal.style.display = 'flex';
-            input.focus();
+            document.getElementById('searchModal').style.display = 'flex';
+            document.getElementById('searchInput').focus();
             document.body.style.overflow = 'hidden';
         }
 
         function closeSearch() {
-            const modal = document.getElementById('searchModal');
-            const input = document.getElementById('searchInput');
-            const clearBtn = document.getElementById('searchClear');
-            modal.style.display = 'none';
-            input.value = '';
-            clearBtn.style.display = 'none';
+            document.getElementById('searchModal').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchClear').style.display = 'none';
             document.body.style.overflow = '';
             renderSearchResults([]);
         }
 
         function highlightMatch(text, indices) {
-            if (!indices || indices.length === 0) return text;
-
-            let result = '';
-            let lastIndex = 0;
-
-            indices.forEach(([start, end]) => {
-                result += text.substring(lastIndex, start);
-                result += `<mark>${text.substring(start, end + 1)}</mark>`;
-                lastIndex = end + 1;
+            if (!indices || !indices.length) return text;
+            let result = '', last = 0;
+            indices.forEach(([s, e]) => {
+                result += text.substring(last, s) + `<mark>${text.substring(s, e + 1)}</mark>`;
+                last = e + 1;
             });
-
-            result += text.substring(lastIndex);
-            return result;
+            return result + text.substring(last);
         }
 
         function renderSearchResults(results) {
             const container = document.getElementById('searchResults');
-
-            if (results.length === 0) {
-                container.innerHTML = `
-                    <div class="search-empty">
-                        <p>No results found</p>
-                        <p class="search-hint">Try different keywords</p>
-                    </div>
-                `;
+            if (!results.length) {
+                container.innerHTML = `<div class="search-empty"><p>No results found</p><p class="search-hint">Try different keywords</p></div>`;
                 return;
             }
-
-            const resultHTML = results.map((result, index) => {
+            const html = results.map(result => {
                 const item = result.item;
                 const matches = result.matches || [];
-
-                let nameHTML = item.name;
-                let pathHTML = item.path;
-                let snippetHTML = '';
-
-                matches.forEach(match => {
-                    if (match.key === 'name') {
-                        nameHTML = highlightMatch(item.name, match.indices);
-                    } else if (match.key === 'path') {
-                        pathHTML = highlightMatch(item.path, match.indices);
-                    } else if (match.key === 'content' && match.indices.length > 0) {
-                        const startIdx = Math.max(0, match.indices[0][0] - 50);
-                        const endIdx = Math.min(item.content.length, match.indices[0][1] + 100);
-                        let snippet = item.content.substring(startIdx, endIdx);
-
-                        const adjustedIndices = match.indices.map(([s, e]) => [
-                            Math.max(0, s - startIdx),
-                            Math.min(snippet.length - 1, e - startIdx)
-                        ]);
-
-                        snippet = snippet.replace(/\n/g, ' ').trim();
-                        snippetHTML = (startIdx > 0 ? '...' : '') +
-                                     highlightMatch(snippet, adjustedIndices) +
-                                     (endIdx < item.content.length ? '...' : '');
+                let nameHTML = item.name, pathHTML = item.path, snippetHTML = '';
+                matches.forEach(m => {
+                    if (m.key === 'name') nameHTML = highlightMatch(item.name, m.indices);
+                    else if (m.key === 'path') pathHTML = highlightMatch(item.path, m.indices);
+                    else if (m.key === 'content' && m.indices.length) {
+                        const s = Math.max(0, m.indices[0][0] - 50);
+                        const e = Math.min(item.content.length, m.indices[0][1] + 100);
+                        const adj = m.indices.map(([a, b]) => [Math.max(0, a - s), Math.min(e - s - 1, b - s)]);
+                        const snip = item.content.substring(s, e).replace(/\n/g, ' ').trim();
+                        snippetHTML = (s > 0 ? '…' : '') + highlightMatch(snip, adj) + (e < item.content.length ? '…' : '');
                     }
                 });
-
-                if (!snippetHTML && item.content) {
-                    snippetHTML = item.content.substring(0, 150).replace(/\n/g, ' ') + '...';
-                }
-
-                return `
-                    <div class="search-result-item" data-path="${item.path}" tabindex="0">
-                        <div class="search-result-name">${nameHTML}</div>
-                        <div class="search-result-path">${pathHTML}</div>
-                        ${snippetHTML ? `<div class="search-result-snippet">${snippetHTML}</div>` : ''}
-                    </div>
-                `;
+                if (!snippetHTML && item.content) snippetHTML = item.content.substring(0, 150).replace(/\n/g, ' ') + '…';
+                return `<div class="search-result-item" data-path="${item.path}" tabindex="0">
+                    <div class="search-result-name">${nameHTML}</div>
+                    <div class="search-result-path">${pathHTML}</div>
+                    ${snippetHTML ? `<div class="search-result-snippet">${snippetHTML}</div>` : ''}
+                </div>`;
             }).join('');
-
-            container.innerHTML = `
-                <div class="search-result-count">${results.length} result${results.length !== 1 ? 's' : ''}</div>
-                ${resultHTML}
-            `;
-
+            container.innerHTML = `<div class="search-result-count">${results.length} result${results.length !== 1 ? 's' : ''}</div>${html}`;
             container.querySelectorAll('.search-result-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const path = item.dataset.path;
-                    closeSearch();
-                    navigateToFile(path);
-                });
-
-                item.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        item.click();
-                    }
-                });
+                item.addEventListener('click', () => { closeSearch(); navigateToFile(item.dataset.path); });
+                item.addEventListener('keydown', e => { if (e.key === 'Enter') item.click(); });
             });
         }
 
         let searchTimeout;
         function performSearch(query) {
             clearTimeout(searchTimeout);
-
-            const clearBtn = document.getElementById('searchClear');
-            clearBtn.style.display = query ? 'block' : 'none';
-
-            if (!query || query.length < 2) {
-                renderSearchResults([]);
-                return;
-            }
-
+            document.getElementById('searchClear').style.display = query ? 'block' : 'none';
+            if (!query || query.length < 2) { renderSearchResults([]); return; }
             searchTimeout = setTimeout(() => {
-                if (fuse) {
-                    const results = fuse.search(query).slice(0, 20);
-                    renderSearchResults(results);
-                }
+                if (fuse) renderSearchResults(fuse.search(query).slice(0, 20));
             }, 300);
         }
 
@@ -572,334 +787,159 @@
             renderSearchResults([]);
             document.getElementById('searchInput').focus();
         });
-
         document.querySelector('.search-backdrop').addEventListener('click', closeSearch);
+        document.getElementById('searchInput').addEventListener('input', e => performSearch(e.target.value));
 
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            performSearch(e.target.value);
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
-                openSearch();
-            }
-
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
             if (e.key === 'Escape') {
-                const modal = document.getElementById('searchModal');
-                if (modal.style.display === 'flex') {
-                    closeSearch();
-                }
+                if (document.getElementById('searchModal').style.display === 'flex') closeSearch();
             }
         });
 
-        document.getElementById('searchResults').addEventListener('keydown', (e) => {
+        document.getElementById('searchResults').addEventListener('keydown', e => {
             const items = Array.from(document.querySelectorAll('.search-result-item'));
-            const activeElement = document.activeElement;
-            const currentIndex = items.indexOf(activeElement);
-
+            const idx = items.indexOf(document.activeElement);
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (currentIndex < items.length - 1) {
-                    items[currentIndex + 1].focus();
-                } else if (currentIndex === -1 && items.length > 0) {
-                    items[0].focus();
-                }
+                if (idx < items.length - 1) items[idx + 1].focus();
+                else if (idx === -1 && items.length) items[0].focus();
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (currentIndex > 0) {
-                    items[currentIndex - 1].focus();
-                } else if (currentIndex === 0) {
-                    document.getElementById('searchInput').focus();
-                }
+                if (idx > 0) items[idx - 1].focus();
+                else if (idx === 0) document.getElementById('searchInput').focus();
             }
         });
 
-        let graphNetwork = null;
-        let graphData = null;
-        let graphNodes = null;
-        let graphEdges = null;
+        // ─── Knowledge Graph ──────────────────────────────────────────────────
+        let graphNetwork = null, graphData = null, graphNodes = null, graphEdges = null;
 
         async function loadGraph() {
             try {
-                const response = await fetch(`${API_BASE}/api/graph`);
-                graphData = await response.json();
+                const r = await fetch(`${API_BASE}/api/graph`);
+                graphData = await r.json();
                 return graphData;
-            } catch (error) {
-                console.error('Error loading graph:', error);
-                return null;
-            }
+            } catch { return null; }
         }
 
         function updateGraphHighlight(newCurrentFile) {
             if (!graphNodes || !graphNetwork) return;
-
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const isDark = currentTheme === 'dark';
-
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             graphNodes.forEach(node => {
-                const isCurrentFile = node.id === newCurrentFile;
-
+                const isCurrent = node.id === newCurrentFile;
                 graphNodes.update({
                     id: node.id,
-                    size: isCurrentFile ? 25 : 15,
+                    size: isCurrent ? 25 : 15,
                     color: {
-                        background: isCurrentFile
-                            ? (isDark ? '#ff6b6b' : '#e74c3c')
-                            : (isDark ? '#4da6ff' : '#0066cc'),
-                        border: isCurrentFile
-                            ? (isDark ? '#ff8787' : '#c0392b')
-                            : (isDark ? '#66b3ff' : '#0052a3'),
+                        background: isCurrent ? (isDark ? '#ff6b6b' : '#e74c3c') : (isDark ? '#4da6ff' : '#0066cc'),
+                        border:     isCurrent ? (isDark ? '#ff8787' : '#c0392b') : (isDark ? '#66b3ff' : '#0052a3'),
                         highlight: {
-                            background: isCurrentFile
-                                ? (isDark ? '#ff8787' : '#c0392b')
-                                : (isDark ? '#66b3ff' : '#0052a3'),
-                            border: isCurrentFile
-                                ? (isDark ? '#ff6b6b' : '#e74c3c')
-                                : (isDark ? '#4da6ff' : '#0066cc')
+                            background: isCurrent ? (isDark ? '#ff8787' : '#c0392b') : (isDark ? '#66b3ff' : '#0052a3'),
+                            border:     isCurrent ? (isDark ? '#ff6b6b' : '#e74c3c') : (isDark ? '#4da6ff' : '#0066cc'),
                         }
                     },
-                    font: {
-                        color: isDark ? '#e0e0e0' : '#1a1a1a',
-                        size: isCurrentFile ? 16 : 14,
-                        bold: isCurrentFile
-                    }
+                    font: { color: isDark ? '#e0e0e0' : '#1a1a1a', size: isCurrent ? 16 : 14, bold: isCurrent }
                 });
             });
-
             if (newCurrentFile && graphNodes.get(newCurrentFile)) {
-                graphNetwork.focus(newCurrentFile, {
-                    scale: 1.2,
-                    animation: {
-                        duration: 800,
-                        easingFunction: 'easeInOutQuad'
-                    }
-                });
+                graphNetwork.focus(newCurrentFile, { scale: 1.2, animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
             }
-
             updateGraphStats(graphData);
         }
 
         function openGraph() {
-            const modal = document.getElementById('graphModal');
-            modal.style.display = 'flex';
+            document.getElementById('graphModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
-
-            if (!graphNetwork) {
-                renderGraph();
-            }
+            if (!graphNetwork) renderGraph();
         }
 
         function closeGraph() {
-            const modal = document.getElementById('graphModal');
-            modal.style.display = 'none';
+            document.getElementById('graphModal').style.display = 'none';
             document.body.style.overflow = '';
         }
 
         async function renderGraph() {
             const data = await loadGraph();
-            if (!data) {
-                console.error('Failed to load graph data');
-                return;
-            }
-
-            console.log('Graph data loaded:', data);
-
-            if (typeof vis === 'undefined') {
-                console.error('Vis.js library not loaded');
-                alert('Graph library not loaded. Please refresh the page.');
-                return;
-            }
-
+            if (!data || typeof vis === 'undefined') return;
             const container = document.getElementById('graphCanvas');
-            if (!container) {
-                console.error('Graph canvas element not found');
-                return;
-            }
-
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const isDark = currentTheme === 'dark';
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentFile = urlParams.get('file');
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const currentFile = new URLSearchParams(window.location.search).get('file');
 
             graphNodes = new vis.DataSet(data.nodes.map(node => {
-                const isCurrentFile = node.id === currentFile;
-
+                const isCurrent = node.id === currentFile;
                 return {
-                    id: node.id,
-                    label: node.label,
-                    title: node.title,
-                    shape: 'dot',
-                    size: isCurrentFile ? 25 : 15,
+                    id: node.id, label: node.label, title: node.title, shape: 'dot',
+                    size: isCurrent ? 25 : 15,
                     color: {
-                        background: isCurrentFile
-                            ? (isDark ? '#ff6b6b' : '#e74c3c')
-                            : (isDark ? '#4da6ff' : '#0066cc'),
-                        border: isCurrentFile
-                            ? (isDark ? '#ff8787' : '#c0392b')
-                            : (isDark ? '#66b3ff' : '#0052a3'),
+                        background: isCurrent ? (isDark ? '#ff6b6b' : '#e74c3c') : (isDark ? '#4da6ff' : '#0066cc'),
+                        border:     isCurrent ? (isDark ? '#ff8787' : '#c0392b') : (isDark ? '#66b3ff' : '#0052a3'),
                         highlight: {
-                            background: isCurrentFile
-                                ? (isDark ? '#ff8787' : '#c0392b')
-                                : (isDark ? '#66b3ff' : '#0052a3'),
-                            border: isCurrentFile
-                                ? (isDark ? '#ff6b6b' : '#e74c3c')
-                                : (isDark ? '#4da6ff' : '#0066cc')
+                            background: isCurrent ? (isDark ? '#ff8787' : '#c0392b') : (isDark ? '#66b3ff' : '#0052a3'),
+                            border:     isCurrent ? (isDark ? '#ff6b6b' : '#e74c3c') : (isDark ? '#4da6ff' : '#0066cc'),
                         }
                     },
-                    font: {
-                        color: isDark ? '#e0e0e0' : '#1a1a1a',
-                        size: isCurrentFile ? 16 : 14,
-                        bold: isCurrentFile
-                    }
+                    font: { color: isDark ? '#e0e0e0' : '#1a1a1a', size: isCurrent ? 16 : 14, bold: isCurrent }
                 };
             }));
 
             graphEdges = new vis.DataSet(data.edges.map(edge => ({
-                from: edge.from,
-                to: edge.to,
-                arrows: 'to',
-                color: {
-                    color: isDark ? '#3a3a3a' : '#e0e0e0',
-                    highlight: isDark ? '#4da6ff' : '#0066cc'
-                },
-                smooth: {
-                    type: 'curvedCW',
-                    roundness: 0.2
-                }
+                from: edge.from, to: edge.to, arrows: 'to',
+                color: { color: isDark ? '#3a3a3a' : '#e0e0e0', highlight: isDark ? '#4da6ff' : '#0066cc' },
+                smooth: { type: 'curvedCW', roundness: 0.2 }
             })));
 
-            const graphDataVis = { nodes: graphNodes, edges: graphEdges };
-
-            const options = {
-                physics: {
-                    enabled: true,
-                    barnesHut: {
-                        gravitationalConstant: -2000,
-                        centralGravity: 0.3,
-                        springLength: 95,
-                        springConstant: 0.04,
-                        damping: 0.09
-                    },
-                    stabilization: {
-                        iterations: 200
-                    }
-                },
-                interaction: {
-                    hover: true,
-                    tooltipDelay: 200,
-                    navigationButtons: true,
-                    keyboard: true
-                }
-            };
-
             try {
-                graphNetwork = new vis.Network(container, graphDataVis, options);
-                console.log('Graph network created successfully');
-
-                graphNetwork.on('click', function(params) {
-                    if (params.nodes.length > 0) {
-                        const nodeId = params.nodes[0];
-                        navigateToFile(nodeId);
-                        updateGraphHighlight(nodeId);
-                    }
+                graphNetwork = new vis.Network(container, { nodes: graphNodes, edges: graphEdges }, {
+                    physics: { enabled: true, barnesHut: { gravitationalConstant: -2000, centralGravity: 0.3, springLength: 95, springConstant: 0.04, damping: 0.09 }, stabilization: { iterations: 200 } },
+                    interaction: { hover: true, tooltipDelay: 200, navigationButtons: true, keyboard: true }
                 });
-
-                graphNetwork.on('doubleClick', function(params) {
-                    if (params.nodes.length > 0) {
-                        const nodeId = params.nodes[0];
-                        closeGraph();
-                    }
+                graphNetwork.on('click', params => {
+                    if (params.nodes.length) { navigateToFile(params.nodes[0]); updateGraphHighlight(params.nodes[0]); }
                 });
-
-                graphNetwork.once('stabilizationIterationsDone', function() {
+                graphNetwork.on('doubleClick', params => { if (params.nodes.length) closeGraph(); });
+                graphNetwork.once('stabilizationIterationsDone', () => {
                     if (currentFile && graphNodes.get(currentFile)) {
-                        graphNetwork.focus(currentFile, {
-                            scale: 1.2,
-                            animation: {
-                                duration: 800,
-                                easingFunction: 'easeInOutQuad'
-                            }
-                        });
-                        console.log('Graph centered on current file:', currentFile);
+                        graphNetwork.focus(currentFile, { scale: 1.2, animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
                     } else {
-                        graphNetwork.fit({
-                            animation: {
-                                duration: 500,
-                                easingFunction: 'easeInOutQuad'
-                            }
-                        });
-                        console.log('Graph fitted to view');
+                        graphNetwork.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
                     }
                 });
-
                 updateGraphStats(data);
-            } catch (error) {
-                console.error('Error creating graph network:', error);
-                alert('Error rendering graph: ' + error.message);
+            } catch (e) {
+                console.error('Error creating graph:', e);
             }
         }
 
         function updateGraphStats(data) {
-            const stats = document.getElementById('graphStats');
-            const nodeCount = data.nodes.length;
-            const edgeCount = data.edges.length;
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentFile = urlParams.get('file');
-
-            const orphanedNodes = data.nodes.filter(node => {
-                const hasIncoming = data.edges.some(e => e.to === node.id);
-                const hasOutgoing = data.edges.some(e => e.from === node.id);
-                return !hasIncoming && !hasOutgoing;
-            });
-
-            const currentFileLinks = currentFile ? {
-                outgoing: data.edges.filter(e => e.from === currentFile).length,
-                incoming: data.edges.filter(e => e.to === currentFile).length
-            } : null;
-
-            let statsHTML = `
-                <div class="graph-stat-item">
-                    <span class="graph-stat-label">Files:</span>
-                    <span>${nodeCount}</span>
-                </div>
-                <div class="graph-stat-item">
-                    <span class="graph-stat-label">Links:</span>
-                    <span>${edgeCount}</span>
-                </div>
-                <div class="graph-stat-item">
-                    <span class="graph-stat-label">Orphaned:</span>
-                    <span>${orphanedNodes.length}</span>
-                </div>
-                <div class="graph-stat-item">
-                    <span class="graph-stat-label">Avg Links/File:</span>
-                    <span>${nodeCount > 0 ? (edgeCount / nodeCount).toFixed(2) : 0}</span>
-                </div>
+            if (!data) return;
+            const currentFile = new URLSearchParams(window.location.search).get('file');
+            const orphaned = data.nodes.filter(n => !data.edges.some(e => e.to === n.id) && !data.edges.some(e => e.from === n.id));
+            const cfLinks = currentFile
+                ? { out: data.edges.filter(e => e.from === currentFile).length, in: data.edges.filter(e => e.to === currentFile).length }
+                : null;
+            let html = `
+                <div class="graph-stat-item"><span class="graph-stat-label">Files:</span><span>${data.nodes.length}</span></div>
+                <div class="graph-stat-item"><span class="graph-stat-label">Links:</span><span>${data.edges.length}</span></div>
+                <div class="graph-stat-item"><span class="graph-stat-label">Orphaned:</span><span>${orphaned.length}</span></div>
+                <div class="graph-stat-item"><span class="graph-stat-label">Avg Links/File:</span><span>${data.nodes.length ? (data.edges.length / data.nodes.length).toFixed(2) : 0}</span></div>
             `;
-
-            if (currentFileLinks) {
-                statsHTML += `
-                    <div class="graph-stat-item" style="margin-left: auto; color: var(--accent);">
-                        <span class="graph-stat-label">Current File:</span>
-                        <span>${currentFileLinks.outgoing} outgoing, ${currentFileLinks.incoming} incoming</span>
-                    </div>
-                `;
-            }
-
-            stats.innerHTML = statsHTML;
+            if (cfLinks) html += `<div class="graph-stat-item" style="margin-left:auto;color:var(--accent)"><span class="graph-stat-label">Current File:</span><span>${cfLinks.out} outgoing, ${cfLinks.in} incoming</span></div>`;
+            document.getElementById('graphStats').innerHTML = html;
         }
 
-        document.getElementById('graphToggle').addEventListener('click', () => {
-            console.log('Graph button clicked');
-            openGraph();
-        });
+        document.getElementById('graphToggle').addEventListener('click', openGraph);
         document.getElementById('graphClose').addEventListener('click', closeGraph);
         document.querySelector('.graph-backdrop').addEventListener('click', closeGraph);
 
+        // ─── Service Worker ───────────────────────────────────────────────────
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+
+        // ─── Init ─────────────────────────────────────────────────────────────
         initTheme();
         initSidebar();
+        initTOC();
         loadFileTree();
         loadMarkdown();
         initHotReload();

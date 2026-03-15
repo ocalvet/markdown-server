@@ -58,7 +58,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
+    <script src="vendor/js/fuse.min.js"></script>
     <script>
         const API_BASE = window.location.origin;
 
@@ -314,6 +314,17 @@
                 else if (currentIndex === 0) document.getElementById('searchInput').focus();
             }
         });
+
+        // Register service worker for offline caching
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch((error) => {
+                    console.log('Service Worker registration failed:', error);
+                });
+        }
 
         initTheme();
         loadFiles();
