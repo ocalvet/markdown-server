@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -331,7 +332,7 @@ func watchFiles() {
 			ignorePatterns := getIgnorePatterns()
 			shouldIgnore := false
 			for _, pattern := range ignorePatterns {
-				if strings.Contains(path, pattern) {
+				if matchesIgnorePattern(path, markdownDir, pattern) {
 					shouldIgnore = true
 					break
 				}
@@ -384,6 +385,23 @@ func watchFiles() {
 	}
 }
 
+// matchesIgnorePattern checks if any segment of the path (relative to rootDir)
+// exactly matches the given ignore pattern. This prevents false positives like
+// "00-build-system" matching the "build" pattern.
+func matchesIgnorePattern(path, rootDir, pattern string) bool {
+	relPath, err := filepath.Rel(rootDir, path)
+	if err != nil {
+		relPath = path
+	}
+	segments := strings.Split(relPath, string(filepath.Separator))
+	for _, seg := range segments {
+		if seg == pattern {
+			return true
+		}
+	}
+	return false
+}
+
 func getIgnorePatterns() []string {
 	envPatterns := os.Getenv("IGNORE_PATTERNS")
 	if envPatterns != "" {
@@ -428,9 +446,9 @@ func buildFileTree(rootDir string) ([]FileInfo, error) {
 			return err
 		}
 
-		// Skip ignored patterns
+		// Skip ignored patterns (match against each path segment's name, not substrings)
 		for _, pattern := range ignorePatterns {
-			if strings.Contains(path, pattern) {
+			if matchesIgnorePattern(path, rootDir, pattern) {
 				if info.IsDir() {
 					return filepath.SkipDir
 				}
@@ -540,7 +558,29 @@ func buildHierarchy(files []FileInfo) []FileInfo {
 	}
 	root = append(root, rootFiles...)
 
+	// Sort the entire tree alphabetically (directories first, then files).
+	sortFileInfos(root)
+
 	return root
+}
+
+// sortFileInfos sorts a slice of FileInfo entries: directories first (alphabetically),
+// then files (alphabetically). It recurses into children.
+func sortFileInfos(items []FileInfo) {
+	sort.Slice(items, func(i, j int) bool {
+		// Directories before files
+		if items[i].IsDir != items[j].IsDir {
+			return items[i].IsDir
+		}
+		// Alphabetical by name (case-insensitive)
+		return strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+	})
+	// Recursively sort children
+	for idx := range items {
+		if len(items[idx].Children) > 0 {
+			sortFileInfos(items[idx].Children)
+		}
+	}
 }
 
 func handleGetFile(w http.ResponseWriter, r *http.Request) {

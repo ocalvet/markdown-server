@@ -34,6 +34,9 @@
                 <button id="searchToggle" class="search-toggle" aria-label="Search" title="Search (Ctrl+K)">
                     <span class="search-icon">🔍</span>
                 </button>
+                <button id="fontToggle" class="font-toggle" aria-label="Toggle font" title="Toggle font (Serif/Sans-serif)">
+                    <span class="font-icon">Aa</span>
+                </button>
                 <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
                     <span class="theme-icon">◐</span>
                 </button>
@@ -139,6 +142,26 @@
             document.documentElement.setAttribute('data-theme', next);
             localStorage.setItem('theme', next);
             updateHighlightTheme(next);
+        });
+
+        // ─── Font Toggle ─────────────────────────────────────────────────────
+        function initFont() {
+            const savedFont = localStorage.getItem('fontFamily') || 'sans';
+            document.documentElement.setAttribute('data-font', savedFont);
+            updateFontIcon(savedFont);
+        }
+
+        function updateFontIcon(font) {
+            const icon = document.querySelector('.font-icon');
+            if (icon) icon.textContent = font === 'serif' ? 'Sf' : 'Aa';
+        }
+
+        document.getElementById('fontToggle').addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-font') || 'sans';
+            const next = current === 'sans' ? 'serif' : 'sans';
+            document.documentElement.setAttribute('data-font', next);
+            localStorage.setItem('fontFamily', next);
+            updateFontIcon(next);
         });
 
         // ─── Sidebar ──────────────────────────────────────────────────────────
@@ -321,25 +344,21 @@
         }
 
         async function loadFileTree(forceRefresh = false) {
+            const cacheKey = CacheManager.getKey('fileTree', 'all');
             try {
-                if (!forceRefresh && fileTreeData) { renderCachedFileTree(); return; }
-
-                const cacheKey = CacheManager.getKey('fileTree', 'all');
-                if (!forceRefresh) {
-                    const cached = CacheManager.get(cacheKey);
-                    if (cached) {
-                        fileTreeData = cached;
-                        renderCachedFileTree();
-                        return;
-                    }
-                }
-
                 const response = await fetch(`${API_BASE}/api/files`);
                 fileTreeData = await response.json();
                 CacheManager.set(cacheKey, fileTreeData);
                 renderCachedFileTree();
             } catch (error) {
-                document.getElementById('sidebarNav').innerHTML = '<div class="error">Error loading files</div>';
+                // Offline: fall back to cache
+                const cached = CacheManager.get(cacheKey);
+                if (cached) {
+                    fileTreeData = cached;
+                    renderCachedFileTree();
+                } else {
+                    document.getElementById('sidebarNav').innerHTML = '<div class="error">Error loading files</div>';
+                }
             }
         }
 
@@ -546,18 +565,21 @@
                 document.getElementById('fileName').textContent = filePath.split('/').pop();
                 renderBreadcrumb(filePath);
 
-                // Cache lookup
+                // Always fetch from network; fall back to cache only when offline
                 const cacheKey = CacheManager.getKey('file', filePath);
                 let rawMarkdown;
-                if (!forceRefresh) {
-                    const cached = CacheManager.get(cacheKey);
-                    if (cached) rawMarkdown = cached.content;
-                }
-                if (!rawMarkdown) {
+                try {
                     const response = await fetch(`${API_BASE}/api/file/${filePath}`);
                     if (!response.ok) throw new Error('File not found');
                     rawMarkdown = await response.text();
                     CacheManager.set(cacheKey, { content: rawMarkdown, timestamp: Date.now() });
+                } catch (fetchError) {
+                    const cached = CacheManager.get(cacheKey);
+                    if (cached) {
+                        rawMarkdown = cached.content;
+                    } else {
+                        throw fetchError;
+                    }
                 }
 
                 // Feature 3: parse and strip frontmatter before rendering
@@ -685,14 +707,17 @@
                         } else if (!file.isDir) {
                             indexPromises.push((async () => {
                                 const cacheKey = CacheManager.getKey('file', file.path);
-                                const cached = CacheManager.get(cacheKey);
-                                if (cached) return { name: file.name, path: file.path, content: cached.content.substring(0, 5000) };
                                 try {
                                     const r = await fetch(`${API_BASE}/api/file/${file.path}`);
                                     const content = await r.text();
                                     CacheManager.set(cacheKey, { content, timestamp: Date.now() });
                                     return { name: file.name, path: file.path, content: content.substring(0, 5000) };
-                                } catch { return null; }
+                                } catch {
+                                    // Offline: fall back to cache
+                                    const cached = CacheManager.get(cacheKey);
+                                    if (cached) return { name: file.name, path: file.path, content: cached.content.substring(0, 5000) };
+                                    return null;
+                                }
                             })());
                         }
                     });
@@ -938,6 +963,7 @@
 
         // ─── Init ─────────────────────────────────────────────────────────────
         initTheme();
+        initFont();
         initSidebar();
         initTOC();
         loadFileTree();

@@ -25,6 +25,9 @@
                 <button id="searchToggle" class="search-toggle" aria-label="Search" title="Search (Ctrl+K)">
                     <span class="search-icon">🔍</span>
                 </button>
+                <button id="fontToggle" class="font-toggle" aria-label="Toggle font" title="Toggle font (Serif/Sans-serif)">
+                    <span class="font-icon">Aa</span>
+                </button>
                 <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
                     <span class="theme-icon">◐</span>
                 </button>
@@ -72,6 +75,25 @@
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
+        });
+
+        function initFont() {
+            const savedFont = localStorage.getItem('fontFamily') || 'sans';
+            document.documentElement.setAttribute('data-font', savedFont);
+            updateFontIcon(savedFont);
+        }
+
+        function updateFontIcon(font) {
+            const icon = document.querySelector('.font-icon');
+            if (icon) icon.textContent = font === 'serif' ? 'Sf' : 'Aa';
+        }
+
+        document.getElementById('fontToggle').addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-font') || 'sans';
+            const next = current === 'sans' ? 'serif' : 'sans';
+            document.documentElement.setAttribute('data-font', next);
+            localStorage.setItem('fontFamily', next);
+            updateFontIcon(next);
         });
 
         function renderFileTree(files, container, level = 0) {
@@ -327,6 +349,7 @@
         }
 
         initTheme();
+        initFont();
         loadFiles();
         initHotReload();
         buildSearchIndex();

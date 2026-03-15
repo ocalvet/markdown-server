@@ -1,3 +1,14 @@
+:root {
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-serif: 'Georgia', 'Libre Baskerville', 'Cambria', 'Times New Roman', serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-body: var(--font-sans);
+}
+
+:root[data-font="serif"] {
+    --font-body: var(--font-serif);
+}
+
 :root[data-theme="light"] {
     --bg-primary: #fafafa;
     --bg-secondary: #ffffff;
@@ -31,21 +42,25 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-body);
+    font-size: 20px;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    line-height: 1.6;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 header {
     background-color: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     box-shadow: 0 2px 4px var(--shadow);
     position: sticky;
     top: 0;
     z-index: 100;
+    font-family: var(--font-ui);
+    font-size: 16px;
 }
 
 .header-container {
@@ -114,7 +129,7 @@ header .container {
 }
 
 h1 {
-    font-size: 1.75rem;
+    font-size: 1.4rem;
     font-weight: 600;
     color: var(--text-primary);
 }
@@ -139,7 +154,8 @@ h1 {
 }
 
 .theme-toggle,
-.sidebar-toggle {
+.sidebar-toggle,
+.font-toggle {
     background: var(--bg-hover);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -148,10 +164,12 @@ h1 {
     font-size: 1.25rem;
     transition: all 0.2s ease;
     color: var(--text-primary);
+    font-family: var(--font-ui);
 }
 
 .theme-toggle:hover,
-.sidebar-toggle:hover {
+.sidebar-toggle:hover,
+.font-toggle:hover {
     background: var(--accent);
     border-color: var(--accent);
     color: white;
@@ -160,6 +178,14 @@ h1 {
 
 .sidebar-toggle {
     display: block;
+}
+
+.font-toggle {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    min-width: 36px;
+    text-align: center;
 }
 
 .back-link {
@@ -332,6 +358,8 @@ main {
     border-radius: 8px;
     padding: 1.5rem;
     box-shadow: 0 2px 8px var(--shadow);
+    font-family: var(--font-ui);
+    font-size: 16px;
 }
 
 .file-item {
@@ -372,10 +400,11 @@ main {
 
 .breadcrumb {
     background-color: var(--bg-secondary);
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.25rem;
     border-radius: 8px;
     margin-bottom: 1.5rem;
-    font-size: 0.9rem;
+    font-size: 14px;
+    font-family: var(--font-ui);
     color: var(--text-secondary);
     box-shadow: 0 2px 4px var(--shadow);
 }
@@ -448,23 +477,28 @@ main {
 }
 
 .markdown-content h1 {
-    font-size: 2rem;
+    font-size: 2.2rem;
     border-bottom: 2px solid var(--border);
     padding-bottom: 0.5rem;
 }
 
 .markdown-content h2 {
-    font-size: 1.5rem;
+    font-size: 1.65rem;
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.3rem;
 }
 
 .markdown-content h3 {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
+}
+
+.markdown-content h4 {
+    font-size: 1.15rem;
 }
 
 .markdown-content p {
-    margin: 1rem 0;
+    margin: 1.1rem 0;
+    line-height: 1.8;
     color: var(--text-primary);
 }
 
@@ -486,6 +520,7 @@ main {
 
 .markdown-content li {
     margin: 0.5rem 0;
+    line-height: 1.75;
 }
 
 .markdown-content code {
@@ -517,9 +552,10 @@ main {
 .markdown-content blockquote {
     border-left: 4px solid var(--accent);
     padding-left: 1rem;
-    margin: 1rem 0;
+    margin: 1.25rem 0;
     color: var(--text-secondary);
     font-style: italic;
+    line-height: 1.75;
 }
 
 .markdown-content table {
@@ -559,7 +595,8 @@ main {
     text-align: center;
     padding: 3rem;
     color: var(--text-secondary);
-    font-size: 1.1rem;
+    font-size: 16px;
+    font-family: var(--font-ui);
 }
 
 .error {
@@ -579,6 +616,9 @@ main {
     flex-shrink: 0;
     transition: all 0.3s ease;
     margin-left: -280px;
+    position: sticky;
+    top: 80px;
+    max-height: calc(100vh - 80px);
 }
 
 .sidebar.sidebar-open {
@@ -586,14 +626,16 @@ main {
 }
 
 .sidebar-header {
-    padding: 1.5rem;
+    padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--border);
+    font-family: var(--font-ui);
+    font-size: 14px;
 }
 
 .home-link {
     color: var(--text-primary);
     text-decoration: none;
-    font-size: 1.1rem;
+    font-size: 15px;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -606,7 +648,9 @@ main {
 }
 
 .sidebar-nav {
-    padding: 1rem 0.5rem;
+    padding: 0.75rem 0.5rem;
+    font-family: var(--font-ui);
+    font-size: 14px;
 }
 
 .sidebar-folder {
@@ -614,7 +658,7 @@ main {
 }
 
 .folder-header {
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     cursor: pointer;
     border-radius: 6px;
     transition: background-color 0.2s ease;
@@ -622,6 +666,7 @@ main {
     align-items: center;
     gap: 0.5rem;
     user-select: none;
+    font-size: 13px;
 }
 
 .folder-header:hover {
@@ -643,13 +688,13 @@ main {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     color: var(--text-primary);
     text-decoration: none;
     border-radius: 6px;
     transition: background-color 0.2s ease;
-    margin: 0.25rem 0;
-    font-size: 0.95rem;
+    margin: 0.15rem 0;
+    font-size: 13px;
     overflow: hidden;
 }
 
@@ -779,6 +824,7 @@ main {
     font-size: 1.25rem;
     transition: all 0.2s ease;
     color: var(--text-primary);
+    font-family: var(--font-ui);
 }
 
 .search-toggle:hover,
@@ -823,6 +869,8 @@ main {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    font-family: var(--font-ui);
+    font-size: 16px;
 }
 
 .search-header {
@@ -1048,6 +1096,8 @@ main {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    font-family: var(--font-ui);
+    font-size: 16px;
 }
 
 .graph-header {
@@ -1169,6 +1219,8 @@ main {
     max-height: calc(100vh - 80px);
     transition: all 0.3s ease;
     margin-right: -240px;
+    font-family: var(--font-ui);
+    font-size: 14px;
 }
 
 .toc-panel.toc-open {
@@ -1272,7 +1324,8 @@ main {
     border-radius: 8px;
     padding: 0.875rem 1.25rem;
     margin-bottom: 1rem;
-    font-size: 0.875rem;
+    font-size: 14px;
+    font-family: var(--font-ui);
 }
 
 .fm-grid {
@@ -1324,6 +1377,8 @@ main {
     margin-top: 2rem;
     border-top: 1px solid var(--border);
     padding-top: 1.5rem;
+    font-family: var(--font-ui);
+    font-size: 14px;
 }
 
 .backlinks-header {
